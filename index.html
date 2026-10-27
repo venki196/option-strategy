@@ -1,8 +1,10 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Option Strategist</title>
-<style>
+<html lang="en">
+ <head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Option Strategist</title>
+  <style>
 :root{--bg:#eef1ee;--ink:#1c2a2e;--mut:#5d6d70;--card:#fbfcfb;--line:#cfd8d4;--ce:#2457a6;--pe:#b7791f;--ok:#2f7d4f;--bad:#b23a3a;color-scheme:light dark}
 @media(prefers-color-scheme:dark){:root{--bg:#141c1e;--ink:#e4ece8;--mut:#93a5a6;--card:#1c2729;--line:#2f3f41;--ce:#6c9bf0;--pe:#e0a64a;--ok:#5ec28a;--bad:#e27878}}
 *{box-sizing:border-box}html,body{margin:0}
@@ -17,38 +19,59 @@ button{padding:11px;border:0;border-radius:8px;background:var(--ink);color:var(-
 button.alt{background:transparent;color:var(--ink);border:1px solid var(--line)}
 .kv{display:grid;grid-template-columns:1fr 1fr;gap:8px}.kv b{display:block;font-size:18px;font-variant-numeric:tabular-nums}.kv span{font-size:12px;color:var(--mut)}
 .scroll{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
-td,th{padding:4px 6px;text-align:right;white-space:nowrap}th{color:var(--mut);font-weight:500}
+td,th{padding:4px 6px;text-align:right;white-space:nowrap}
 td.k{text-align:center;font-weight:700}tr.atm td.k{background:var(--ink);color:var(--bg);border-radius:4px}
 td.c,td.p{position:relative;z-index:0}td i{position:absolute;top:3px;bottom:3px;z-index:-1;opacity:.28}
 td.c i{right:0;background:var(--ce)}td.p i{left:0;background:var(--pe)}
 .leg{display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding:4px 0}
 .buy{color:var(--ok)}.sell{color:var(--bad)}#err{color:var(--bad);font-size:13px;white-space:pre-wrap}
-.hide{display:none}small{color:var(--mut)}
-</style></head><body>
-<h1>Option Strategist</h1>
-<p class="sub">Kotak Neo option chain, OI analytics and rule-based strategy ideas.</p>
+.hide{display:none}small{color:var(--mut)}.warn{color:var(--bad);font-size:13px}
+</style>
+ </head>
+ <body>
+  <h1>Option Strategist</h1>
+  <p class="sub">Kotak Neo option chain, OI analytics and strategy ideas by market view.</p>
+  <div class="card" id="login">
+   <h2>Connect</h2>
+   <label>Consumer key (Neo app → More → Trade API)</label><input id="ck" type="password" autocomplete="off">
+   <div class="row">
+    <div>
+     <label>UCC</label><input id="ucc">
+    </div>
+    <div>
+     <label>Mobile (+91…)</label><input id="mob" inputmode="tel">
+    </div>
+   </div>
+   <div class="row">
+    <div>
+     <label>TOTP (6 digits)</label><input id="totp" inputmode="numeric" maxlength="6">
+    </div>
+    <div>
+     <label>MPIN</label><input id="mpin" type="password" inputmode="numeric">
+    </div>
+   </div>
+   <button id="go">Log in</button>
+   <button class="alt" id="demo">Try with demo data</button>
+   <p id="err"></p>
+   <small>Consumer key, UCC and mobile are kept on this device. TOTP and MPIN are never stored.</small>
+  </div>
+  <div class="card hide" id="ctl">
+   <div class="row">
+    <div>
+     <label>Index</label><select id="sym"><option>NIFTY</option><option>BANKNIFTY</option><option>FINNIFTY</option><option>MIDCPNIFTY</option><option>SENSEX</option></select>
+    </div>
+    <div>
+     <label>Expiry</label><select id="exp"></select>
+    </div>
+   </div>
+   <button id="load">Refresh chain</button>
+   <p id="err2" class="warn"></p>
+  </div>
+  <div id="out"></div>
+  <script>
+const $=id=>document.getElementById(id),S={},M={};
+['ck','ucc','mob'].forEach(i=>{try{$(i).value=localStorage.getItem('os_'+i)||''}catch{}});
 
-<div class="card" id="login">
-<h2>Connect</h2>
-<label>Consumer key (Neo app → More → Trade API)</label><input id="ck" type="password" autocomplete="off">
-<div class="row"><div><label>UCC</label><input id="ucc"></div><div><label>Mobile (+91…)</label><input id="mob" inputmode="tel"></div></div>
-<div class="row"><div><label>TOTP (6 digits)</label><input id="totp" inputmode="numeric" maxlength="6"></div><div><label>MPIN</label><input id="mpin" type="password" inputmode="numeric"></div></div>
-<button id="go">Log in</button><button class="alt" id="demo">Try with demo data</button>
-<p id="err"></p><small>Consumer key, UCC and mobile are kept on this device. TOTP and MPIN are never stored.</small>
-</div>
-
-<div class="card hide" id="ctl">
-<div class="row"><div><label>Index</label><select id="sym"><option>NIFTY</option><option>BANKNIFTY</option></select></div>
-<div><label>Expiry</label><select id="exp"></select></div></div>
-<button id="load">Refresh chain</button>
-</div>
-<div id="out"></div>
-
-<script>
-const $=id=>document.getElementById(id),S={};
-const K=localStorage;['ck','ucc','mob'].forEach(i=>{try{$(i).value=K.getItem('os_'+i)||''}catch{}});
-
-/* ---------- transport: native HTTP in Capacitor (no CORS), fetch otherwise ---------- */
 async function http(method,url,headers,body){
   const C=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.CapacitorHttp;
   if(C){const r=await C.request({method,url,headers,data:body});
@@ -58,26 +81,31 @@ async function http(method,url,headers,body){
   try{return JSON.parse(t)}catch{return t}
 }
 
-/* ---------- Kotak Neo adapter (verify paths against current Neo docs) ---------- */
+/* index -> derivatives segment and candidate spot symbols (verify names if spot shows "estimated") */
+const IDX={
+  NIFTY:{seg:'nse_fo',spot:['nse_cm|Nifty 50']},
+  BANKNIFTY:{seg:'nse_fo',spot:['nse_cm|Nifty Bank']},
+  FINNIFTY:{seg:'nse_fo',spot:['nse_cm|Nifty Fin Service','nse_cm|FINNIFTY']},
+  MIDCPNIFTY:{seg:'nse_fo',spot:['nse_cm|NIFTY MID SELECT','nse_cm|Nifty Midcap Select']},
+  SENSEX:{seg:'bse_fo',spot:['bse_cm|SENSEX','bse_cm|Sensex']}
+};
 const LOGIN='https://mis.kotaksecurities.com/login/1.0/';
-const IDX={NIFTY:'Nifty 50',BANKNIFTY:'Nifty Bank'};
 const Kotak={
   async login(){
     const H={Authorization:S.ck,'neo-fin-key':'neotradeapi','Content-Type':'application/json'};
     let r=await http('POST',LOGIN+'tradeApiLogin',H,{mobileNumber:S.mob,ucc:S.ucc,totp:$('totp').value.trim()});
     let d=r.data||{};
     r=await http('POST',LOGIN+'tradeApiValidate',{...H,sid:d.sid,Auth:d.token},{mpin:$('mpin').value.trim()});
-    d=r.data||{};S.base=d.baseUrl;
-    if(!S.base)throw new Error('Login ok but no baseUrl returned: '+JSON.stringify(r).slice(0,200));
+    S.base=(r.data||{}).baseUrl;if(!S.base)throw new Error('No baseUrl: '+JSON.stringify(r).slice(0,200));
   },
   H(){return{Authorization:S.ck}},
-  async master(){
+  async master(seg){
     const r=await http('GET',S.base+'/script-details/1.0/masterscrip/file-paths',this.H());
-    const urls=(r.data&&r.data.filesPaths)||[];
-    const u=urls.find(x=>/nse_fo/i.test(x));if(!u)throw new Error('nse_fo scrip master not found');
-    const csv=await http('GET',u,{});return typeof csv==='string'?csv:''
+    const u=((r.data&&r.data.filesPaths)||[]).find(x=>new RegExp(seg,'i').test(x));
+    if(!u)throw new Error(seg+' scrip master not found');
+    const c=await http('GET',u,{});return typeof c==='string'?c:''
   },
-  async quotes(list){ // list of "nse_fo|token" or "nse_cm|Nifty 50"
+  async quotes(list){
     const out=[];
     for(let i=0;i<list.length;i+=25){
       const q=encodeURIComponent(list.slice(i,i+25).join(','));
@@ -87,70 +115,99 @@ const Kotak={
   }
 };
 const num=v=>{const n=parseFloat(v);return isFinite(n)?n:0};
-const qLtp=q=>num(q.ltp??q.last_traded_price);
-const qOi=q=>num(q.open_int??q.oi??q.openInterest);
-const qTok=q=>String(q.exchange_token??q.instrument_token??'');
+const qLtp=q=>num(q.ltp??q.last_traded_price),qOi=q=>num(q.open_int??q.oi??q.openInterest),qTok=q=>String(q.exchange_token??q.instrument_token??'');
 
-function parseMaster(csv,sym){
-  const L=csv.split(/\r?\n/),h=L[0].split(',').map(s=>s.trim().replace(/;$/,''));
+function cols(csv){const L=csv.split(/\r?\n/),h=L[0].split(',').map(s=>s.trim().replace(/;$/,''));
   const ix=n=>h.findIndex(x=>x.toLowerCase()===n.toLowerCase());
-  const a={tok:ix('pSymbol'),name:ix('pSymbolName'),typ:ix('pOptionType'),k:ix('dStrikePrice'),e:ix('lExpiryDate')};
-  const rows=[];
-  for(let i=1;i<L.length;i++){const c=L[i].split(',');if(c.length<h.length-1)continue;
+  return{L,h,tok:ix('pSymbol'),name:ix('pSymbolName'),typ:ix('pOptionType'),k:ix('dStrikePrice'),e:ix('lExpiryDate')}}
+function parseMaster(csv,sym){
+  const a=cols(csv),rows=[];
+  for(let i=1;i<a.L.length;i++){const c=a.L[i].split(',');if(c.length<a.h.length-1)continue;
     if(c[a.name]!==sym||!/^(CE|PE)$/.test(c[a.typ]))continue;
-    rows.push({tok:c[a.tok],type:c[a.typ],k:num(c[a.k])/100,exp:num(c[a.e])+315513600})}
+    const e=num(c[a.e]);rows.push({tok:c[a.tok],type:c[a.typ],k:num(c[a.k])/100,exp:e+(e<1.6e9?315513600:0)})}
   return rows
 }
+function names(csv){const a=cols(csv);return[...new Set(a.L.slice(1,4000).map(l=>l.split(',')[a.name]))].slice(0,12).join(', ')}
 const fmtD=s=>new Date(s*1000).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'2-digit',timeZone:'UTC'});
 
 /* ---------- analytics ---------- */
 function analyse(rows,spot){
-  const ks=rows.map(r=>r.k),step=Math.min(...ks.slice(1).map((k,i)=>k-ks[i]).filter(d=>d>0));
+  const ks=rows.map(r=>r.k),s=Math.min(...ks.slice(1).map((k,i)=>k-ks[i]).filter(d=>d>0));
   const atm=ks.reduce((b,k)=>Math.abs(k-spot)<Math.abs(b-spot)?k:b,ks[0]);
-  const sum=f=>rows.reduce((s,r)=>s+f(r),0);
-  const coi=sum(r=>r.ce.oi),poi=sum(r=>r.pe.oi);
+  const sum=f=>rows.reduce((t,r)=>t+f(r),0),coi=sum(r=>r.ce.oi),poi=sum(r=>r.pe.oi);
   let mp=ks[0],best=Infinity;
   for(const K of ks){const l=sum(r=>r.ce.oi*Math.max(0,K-r.k)+r.pe.oi*Math.max(0,r.k-K));if(l<best){best=l;mp=K}}
   const up=rows.filter(r=>r.k>=atm),dn=rows.filter(r=>r.k<=atm);
-  const cw=up.reduce((b,r)=>r.ce.oi>b.ce.oi?r:b,up[0]).k;   // call wall: resistance
-  const pw=dn.reduce((b,r)=>r.pe.oi>b.pe.oi?r:b,dn[0]).k;   // put wall: support
+  const cw=up.reduce((b,r)=>r.ce.oi>b.ce.oi?r:b,up[0]).k,pw=dn.reduce((b,r)=>r.pe.oi>b.pe.oi?r:b,dn[0]).k;
   const a=rows.find(r=>r.k===atm);
-  return{step,atm,pcr:coi?poi/coi:0,mp,cw,pw,straddle:a.ce.ltp+a.pe.ltp}
+  return{s,atm,pcr:coi?poi/coi:0,mp,cw,pw,straddle:a.ce.ltp+a.pe.ltp,ks}
 }
-function strategy(rows,A,spot){
-  const g=(k,t)=>(rows.find(r=>r.k===k)||{ce:{ltp:0},pe:{ltp:0}})[t==='CE'?'ce':'pe'].ltp,s=A.step;
-  let name,why,legs;
-  if(A.pcr>=1.2){name='Bull put spread';why=`PCR ${A.pcr.toFixed(2)} leans bullish and put OI peaks at ${A.pw}.`;
-    legs=[['SELL',A.pw,'PE'],['BUY',A.pw-2*s,'PE']]}
-  else if(A.pcr<=0.8){name='Bear call spread';why=`PCR ${A.pcr.toFixed(2)} leans bearish and call OI peaks at ${A.cw}.`;
-    legs=[['SELL',A.cw,'CE'],['BUY',A.cw+2*s,'CE']]}
-  else{name='Iron condor';why=`PCR ${A.pcr.toFixed(2)} is balanced; OI walls bracket spot between ${A.pw} and ${A.cw}.`;
-    legs=[['SELL',A.pw,'PE'],['BUY',A.pw-2*s,'PE'],['SELL',A.cw,'CE'],['BUY',A.cw+2*s,'CE']]}
-  legs=legs.map(([d,k,t])=>({d,k,t,p:g(k,t)}));
-  const cr=legs.reduce((c,l)=>c+(l.d==='SELL'?l.p:-l.p),0),w=2*s,risk=w-cr;
-  const sp=legs.filter(l=>l.d==='SELL'),be=sp.map(l=>l.t==='PE'?l.k-cr:l.k+cr);
-  return{name,why,legs,cr,risk,be}
+
+/* ---------- predefined strategies: [side, strike, type] ---------- */
+const LIB={
+Bullish:{
+ 'Bull put spread':c=>[['SELL',c.pw,'PE'],['BUY',c.sn(c.pw-2*c.s),'PE']],
+ 'Bull call spread':c=>[['BUY',c.atm,'CE'],['SELL',c.cw>c.atm?c.cw:c.sn(c.atm+4*c.s),'CE']],
+ 'Long call':c=>[['BUY',c.atm,'CE']]},
+Bearish:{
+ 'Bear call spread':c=>[['SELL',c.cw,'CE'],['BUY',c.sn(c.cw+2*c.s),'CE']],
+ 'Bear put spread':c=>[['BUY',c.atm,'PE'],['SELL',c.pw<c.atm?c.pw:c.sn(c.atm-4*c.s),'PE']],
+ 'Long put':c=>[['BUY',c.atm,'PE']]},
+Neutral:{
+ 'Iron condor':c=>[['SELL',c.pw,'PE'],['BUY',c.sn(c.pw-2*c.s),'PE'],['SELL',c.cw,'CE'],['BUY',c.sn(c.cw+2*c.s),'CE']],
+ 'Iron butterfly':c=>[['SELL',c.atm,'CE'],['SELL',c.atm,'PE'],['BUY',c.sn(c.atm+3*c.s),'CE'],['BUY',c.sn(c.atm-3*c.s),'PE']],
+ 'Short strangle (undefined risk)':c=>[['SELL',c.cw,'CE'],['SELL',c.pw,'PE']]},
+Volatile:{
+ 'Long straddle':c=>[['BUY',c.atm,'CE'],['BUY',c.atm,'PE']],
+ 'Long strangle':c=>[['BUY',c.sn(c.atm+2*c.s),'CE'],['BUY',c.sn(c.atm-2*c.s),'PE']],
+ 'Reverse iron condor':c=>[['BUY',c.sn(c.atm+2*c.s),'CE'],['SELL',c.sn(c.atm+4*c.s),'CE'],['BUY',c.sn(c.atm-2*c.s),'PE'],['SELL',c.sn(c.atm-4*c.s),'PE']]}
+};
+function pay(legs,x){return legs.reduce((a,l)=>{const v=l.t==='CE'?Math.max(0,x-l.k):Math.max(0,l.k-x);return a+(l.d==='BUY'?v-l.p:l.p-v)},0)}
+function profile(legs){ // payoff at expiry is piecewise linear: check 0 and each strike
+  const ks=[...new Set(legs.map(l=>l.k))].sort((a,b)=>a-b),pts=[0,...ks],ys=pts.map(x=>pay(legs,x)),top=ks[ks.length-1];
+  const sl=pay(legs,top+1)-pay(legs,top);let mx=Math.max(...ys),mn=Math.min(...ys);
+  if(sl>1e-9)mx=Infinity;if(sl<-1e-9)mn=-Infinity;
+  const be=[];for(let i=0;i<pts.length-1;i++){const a=ys[i],b=ys[i+1];if(a*b<0)be.push(pts[i]-a*(pts[i+1]-pts[i])/(b-a))}
+  if(ys[ys.length-1]*sl<0)be.push(top-ys[ys.length-1]/sl);
+  return{mx,mn,be}
 }
 
 /* ---------- render ---------- */
-const n0=v=>Math.round(v).toLocaleString('en-IN');
-function render(rows,spot){
-  const A=analyse(rows,spot),T=strategy(rows,A,spot),mx=Math.max(...rows.map(r=>Math.max(r.ce.oi,r.pe.oi)))||1;
+let ST=null;const n0=v=>Math.round(v).toLocaleString('en-IN'),fm=v=>Math.abs(v)===Infinity?'Unlimited':v.toFixed(1);
+function render(rows,spot,note){
+  const A=analyse(rows,spot),bias=A.pcr>=1.2?'Bullish':A.pcr<=0.8?'Bearish':'Neutral';
+  ST={rows,spot,A,bias};
+  const mx=Math.max(...rows.map(r=>Math.max(r.ce.oi,r.pe.oi)))||1;
   const tr=rows.map(r=>`<tr class="${r.k===A.atm?'atm':''}"><td class="c"><i style="width:${r.ce.oi/mx*100}%"></i>${n0(r.ce.oi)}</td><td>${r.ce.ltp.toFixed(1)}</td><td class="k">${r.k}</td><td>${r.pe.ltp.toFixed(1)}</td><td class="p"><i style="width:${r.pe.oi/mx*100}%"></i>${n0(r.pe.oi)}</td></tr>`).join('');
   $('out').innerHTML=`
   <div class="card"><h2>Snapshot</h2><div class="kv">
-  <div><span>Spot</span><b>${spot.toFixed(2)}</b></div><div><span>PCR (OI)</span><b>${A.pcr.toFixed(2)}</b></div>
+  <div><span>Spot${note?' (estimated)':''}</span><b>${spot.toFixed(2)}</b></div><div><span>PCR (OI)</span><b>${A.pcr.toFixed(2)}</b></div>
   <div><span>Max pain</span><b>${A.mp}</b></div><div><span>ATM straddle</span><b>${A.straddle.toFixed(1)}</b></div>
-  <div><span>Put wall (support)</span><b>${A.pw}</b></div><div><span>Call wall (resistance)</span><b>${A.cw}</b></div></div></div>
-  <div class="card"><h2>${T.name}</h2><p class="sub">${T.why}</p>
-  ${T.legs.map(l=>`<div class="leg"><span class="${l.d==='BUY'?'buy':'sell'}">${l.d} ${l.k} ${l.t}</span><span>${l.p.toFixed(1)}</span></div>`).join('')}
-  <div class="kv" style="margin-top:8px"><div><span>Net credit / unit</span><b>${T.cr.toFixed(1)}</b></div><div><span>Max loss / unit</span><b>${T.risk.toFixed(1)}</b></div>
-  <div><span>Max profit / unit</span><b>${T.cr.toFixed(1)}</b></div><div><span>Breakeven</span><b>${T.be.map(x=>x.toFixed(0)).join(' / ')}</b></div></div>
-  <p class="sub" style="margin-top:8px">Rule-based screen from OI and PCR only. It ignores IV, events and margin. Check the numbers yourself before trading.</p></div>
+  <div><span>Put wall (support)</span><b>${A.pw}</b></div><div><span>Call wall (resistance)</span><b>${A.cw}</b></div></div>
+  <p class="sub" style="margin:8px 0 0">OI lean: <b>${bias}</b>. ${note||''}</p></div>
+  <div class="card"><h2>Strategy</h2>
+  <div class="row"><div><label>Market view</label><select id="view">${Object.keys(LIB).map(v=>`<option ${v===bias?'selected':''}>${v}</option>`).join('')}</select></div>
+  <div><label>Strategy</label><select id="strat"></select></div></div><div id="sc"></div></div>
   <div class="card scroll"><h2>Chain <small>(call OI · call LTP · strike · put LTP · put OI)</small></h2><table>${tr}</table></div>`;
+  $('view').onchange=fillStrat;$('strat').onchange=drawStrat;fillStrat();
+}
+function fillStrat(){$('strat').innerHTML=Object.keys(LIB[$('view').value]).map(n=>`<option>${n}</option>`).join('');drawStrat()}
+function drawStrat(){
+  const{rows,spot,A,bias}=ST,v=$('view').value,name=$('strat').value;
+  const c={atm:A.atm,pw:A.pw,cw:A.cw,s:A.s,sn:k=>A.ks.reduce((b,x)=>Math.abs(x-k)<Math.abs(b-k)?x:b)};
+  const legs=LIB[v][name](c).map(([d,k,t])=>({d,k,t,p:(rows.find(r=>r.k===k)||{ce:{ltp:0},pe:{ltp:0}})[t==='CE'?'ce':'pe'].ltp}));
+  const net=legs.reduce((t,l)=>t+(l.d==='SELL'?l.p:-l.p),0),P=profile(legs);
+  const em=A.straddle,fit=v==='Volatile'?`ATM straddle implies a move of about ±${em.toFixed(0)} (${(em/spot*100).toFixed(1)}%); this pays off only if the move is larger.`:
+    v===bias?`Matches the current OI lean (PCR ${A.pcr.toFixed(2)}).`:`Goes against the current OI lean (${bias}, PCR ${A.pcr.toFixed(2)}). Treat with caution.`;
+  $('sc').innerHTML=`<p class="sub" style="margin-top:8px">${fit}</p>`+
+  legs.map(l=>`<div class="leg"><span class="${l.d==='BUY'?'buy':'sell'}">${l.d} ${l.k} ${l.t}</span><span>${l.p.toFixed(1)}</span></div>`).join('')+
+  `<div class="kv" style="margin-top:8px"><div><span>Net ${net>=0?'credit':'debit'} / unit</span><b>${Math.abs(net).toFixed(1)}</b></div>
+  <div><span>Max profit / unit</span><b>${fm(P.mx)}</b></div><div><span>Max loss / unit</span><b>${fm(-P.mn)}</b></div>
+  <div><span>Breakeven</span><b>${P.be.map(x=>x.toFixed(0)).join(' / ')||'-'}</b></div></div>
+  ${/undefined/.test(name)?'<p class="warn">Short strangle has no cap on loss and needs large margin.</p>':''}
+  <p class="sub" style="margin-top:8px">Payoff at expiry using current LTPs, per unit (multiply by lot size). A screen built from OI and PCR only; it ignores IV, events and margin.</p>`;
 }
 
-/* ---------- demo data ---------- */
 function demo(){
   const spot=24512.4,rows=[];
   for(let i=-12;i<=12;i++){const k=24500+i*50,d=Math.abs(i);
@@ -160,33 +217,42 @@ function demo(){
 }
 
 /* ---------- wiring ---------- */
-let M=null;
-const fail=e=>{$('err').textContent=String(e.message||e)};
-$('demo').onclick=()=>{S.demo=true;$('login').classList.add('hide');const d=demo();render(d.rows,d.spot)};
+const fail=e=>{$('err').textContent=$('err2').textContent=String(e.message||e)};
+$('demo').onclick=()=>{$('login').classList.add('hide');const d=demo();render(d.rows,d.spot)};
 $('go').onclick=async()=>{
   try{$('err').textContent='';S.ck=$('ck').value.trim();S.ucc=$('ucc').value.trim();S.mob=$('mob').value.trim();
-    ['ck','ucc','mob'].forEach(i=>K.setItem('os_'+i,$(i).value.trim()));
+    ['ck','ucc','mob'].forEach(i=>localStorage.setItem('os_'+i,$(i).value.trim()));
     $('go').textContent='Connecting…';await Kotak.login();
-    M=await Kotak.master();$('login').classList.add('hide');$('ctl').classList.remove('hide');fillExp();await load()
+    $('login').classList.add('hide');$('ctl').classList.remove('hide');await switchIdx()
   }catch(e){fail(e)}finally{$('go').textContent='Log in'}
 };
-function fillExp(){
-  const rows=parseMaster(M,$('sym').value),now=Date.now()/1000-86400;
-  const ex=[...new Set(rows.map(r=>r.exp))].filter(e=>e>=now).sort((a,b)=>a-b).slice(0,4);
-  $('exp').innerHTML=ex.map(e=>`<option value="${e}">${fmtD(e)}</option>`).join('')
+async function switchIdx(){
+  try{$('err2').textContent='';const sym=$('sym').value,seg=IDX[sym].seg;
+    if(!M[seg])M[seg]=await Kotak.master(seg);
+    const now=Date.now()/1000-86400,ex=[...new Set(parseMaster(M[seg],sym).map(r=>r.exp))].filter(e=>e>=now).sort((a,b)=>a-b).slice(0,4);
+    if(!ex.length)throw new Error('No '+sym+' options found in '+seg+' master. Names seen: '+names(M[seg]));
+    $('exp').innerHTML=ex.map(e=>`<option value="${e}">${fmtD(e)}</option>`).join('');await load()
+  }catch(e){fail(e)}
 }
-$('sym').onchange=fillExp;$('load').onclick=()=>load();
+$('sym').onchange=switchIdx;$('load').onclick=load;
 async function load(){
-  try{$('err').textContent='';const sym=$('sym').value,ex=+$('exp').value;
-    const sp=await Kotak.quotes(['nse_cm|'+IDX[sym]]);const spot=qLtp(sp[0]||{});
-    if(!spot)throw new Error('Spot quote empty: '+JSON.stringify(sp).slice(0,200));
-    const all=parseMaster(M,sym).filter(r=>r.exp===ex);
-    const step=(sym==='NIFTY'?50:100),near=all.filter(r=>Math.abs(r.k-spot)<=12*step);
-    const qs=await Kotak.quotes(near.map(r=>'nse_fo|'+r.tok)),byT={};qs.forEach(q=>byT[qTok(q)]=q);
+  try{$('err2').textContent='';const sym=$('sym').value,cfg=IDX[sym],ex=+$('exp').value;
+    let spot=0;
+    for(const c of cfg.spot){try{const q=await Kotak.quotes([c]);spot=qLtp(q[0]||{});if(spot)break}catch{}}
+    const all=parseMaster(M[cfg.seg],sym).filter(r=>r.exp===ex),ks=[...new Set(all.map(r=>r.k))].sort((a,b)=>a-b);
+    const st=Math.min(...ks.slice(1).map((k,i)=>k-ks[i]).filter(d=>d>0)),ctr=spot||ks[Math.floor(ks.length/2)],w=(spot?12:25)*st;
+    const near=all.filter(r=>Math.abs(r.k-ctr)<=w);
+    const qs=await Kotak.quotes(near.map(r=>cfg.seg+'|'+r.tok)),byT={};qs.forEach(q=>byT[qTok(q)]=q);
     const m={};near.forEach(r=>{const q=byT[r.tok]||{};(m[r.k]=m[r.k]||{k:r.k})[r.type==='CE'?'ce':'pe']={oi:qOi(q),ltp:qLtp(q)}});
-    const rows=Object.values(m).filter(r=>r.ce&&r.pe).sort((a,b)=>a.k-b.k);
+    let rows=Object.values(m).filter(r=>r.ce&&r.pe).sort((a,b)=>a.k-b.k),note='';
+    if(!spot){ // fallback: put-call parity at the strike where CE and PE prices are closest
+      let b=null;for(const r of rows)if(r.ce.ltp>0&&r.pe.ltp>0){const d=Math.abs(r.ce.ltp-r.pe.ltp);if(!b||d<b.d)b={d,s:r.k+r.ce.ltp-r.pe.ltp}}
+      if(!b)throw new Error('Could not get spot or option prices (market closed?).');
+      spot=b.s;rows=rows.filter(r=>Math.abs(r.k-spot)<=12*st);note='Index quote was unavailable, so spot comes from put-call parity (close to the futures price).'}
     if(rows.length<5)throw new Error('Too few strikes parsed; check quote field names in qLtp/qOi.');
-    render(rows,spot)
-  }catch(e){fail(e);$('ctl').classList.remove('hide')}
+    render(rows,spot,note)
+  }catch(e){fail(e)}
 }
-</script></body></html>
+</script>
+ </body>
+</html>
