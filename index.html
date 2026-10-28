@@ -17,20 +17,24 @@ input,select{width:100%;padding:10px;border:1px solid var(--line);border-radius:
 .row{display:flex;gap:8px}.row>*{flex:1}
 button{padding:11px;border:0;border-radius:8px;background:var(--ink);color:var(--bg);font-size:15px;font-weight:600;width:100%;margin-top:10px}
 button.alt{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button.live{background:var(--bad);color:#fff}
 .kv{display:grid;grid-template-columns:1fr 1fr;gap:8px}.kv b{display:block;font-size:18px;font-variant-numeric:tabular-nums}.kv span{font-size:12px;color:var(--mut)}
 .scroll{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
 td,th{padding:4px 6px;text-align:right;white-space:nowrap}
 td.k{text-align:center;font-weight:700}tr.atm td.k{background:var(--ink);color:var(--bg);border-radius:4px}
 td.c,td.p{position:relative;z-index:0}td i{position:absolute;top:3px;bottom:3px;z-index:-1;opacity:.28}
 td.c i{right:0;background:var(--ce)}td.p i{left:0;background:var(--pe)}
-.leg{display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding:4px 0}
+.leg{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding:4px 0;gap:8px}
+.leg input{width:100px;padding:6px;text-align:right}
 .buy{color:var(--ok)}.sell{color:var(--bad)}#err{color:var(--bad);font-size:13px;white-space:pre-wrap}
 .hide{display:none}small{color:var(--mut)}.warn{color:var(--bad);font-size:13px}
+.res{white-space:pre-wrap;font:12px/1.4 ui-monospace,monospace;background:var(--bg);border-radius:8px;padding:8px;margin-top:8px}
+.chk{display:flex;gap:8px;align-items:center;margin-top:10px;font-size:14px;color:var(--ink)}.chk input{width:auto}
 </style>
  </head>
  <body>
   <h1>Option Strategist</h1>
-  <p class="sub">Kotak Neo option chain, OI analytics and strategy ideas by market view.</p>
+  <p class="sub">Kotak Neo option chain, strategies by market view, live ticks and order ticket.</p>
   <div class="card" id="login">
    <h2>Connect</h2>
    <label>Consumer key (Neo app → More → Trade API)</label><input id="ck" type="password" autocomplete="off">
@@ -64,24 +68,37 @@ td.c i{right:0;background:var(--ce)}td.p i{left:0;background:var(--pe)}
      <label>Expiry</label><select id="exp"></select>
     </div>
    </div>
-   <button id="load">Refresh chain</button>
+   <div class="row">
+    <div>
+     <label>Updates</label><select id="mode"><option value="manual">Manual</option><option value="auto">Auto every 5 s</option><option value="live">Live ticks</option></select>
+    </div>
+    <div>
+     <label>&nbsp;</label>
+     <button class="alt" id="load" style="margin-top:0">Refresh chain</button>
+    </div>
+   </div>
+   <div class="row">
+    <button class="alt" id="fundsb">Check funds</button>
+   </div>
+   <p id="funds" class="sub" style="margin:8px 0 0"></p>
+   <p id="wsst" class="sub" style="margin:4px 0 0"></p>
    <p id="err2" class="warn"></p>
   </div>
   <div id="out"></div>
   <script>
-const $=id=>document.getElementById(id),S={},M={};
+const $=id=>document.getElementById(id),S={},M={},LOT={NIFTY:65,BANKNIFTY:30,FINNIFTY:60,MIDCPNIFTY:120,SENSEX:20},MAXLOTS=20;
 ['ck','ucc','mob'].forEach(i=>{try{$(i).value=localStorage.getItem('os_'+i)||''}catch{}});
-
+ 
 async function http(method,url,headers,body){
+  const form=/x-www-form-urlencoded/.test(headers['Content-Type']||'');
   const C=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.CapacitorHttp;
   if(C){const r=await C.request({method,url,headers,data:body});
     if(r.status>=400)throw new Error(r.status+' '+JSON.stringify(r.data).slice(0,300));return r.data}
-  const r=await fetch(url,{method,headers,body:body==null?undefined:JSON.stringify(body)});
+  const r=await fetch(url,{method,headers,body:body==null?undefined:form?new URLSearchParams(body).toString():JSON.stringify(body)});
   const t=await r.text();if(!r.ok)throw new Error(r.status+' '+t.slice(0,300));
   try{return JSON.parse(t)}catch{return t}
 }
-
-/* index -> derivatives segment and candidate spot symbols (verify names if spot shows "estimated") */
+ 
 const IDX={
   NIFTY:{seg:'nse_fo',spot:['nse_cm|Nifty 50']},
   BANKNIFTY:{seg:'nse_fo',spot:['nse_cm|Nifty Bank']},
@@ -90,15 +107,18 @@ const IDX={
   SENSEX:{seg:'bse_fo',spot:['bse_cm|SENSEX','bse_cm|Sensex']}
 };
 const LOGIN='https://mis.kotaksecurities.com/login/1.0/';
+const sid=()=>S.hs?'?sId='+encodeURIComponent(S.hs):'';
 const Kotak={
   async login(){
     const H={Authorization:S.ck,'neo-fin-key':'neotradeapi','Content-Type':'application/json'};
     let r=await http('POST',LOGIN+'tradeApiLogin',H,{mobileNumber:S.mob,ucc:S.ucc,totp:$('totp').value.trim()});
     let d=r.data||{};
     r=await http('POST',LOGIN+'tradeApiValidate',{...H,sid:d.sid,Auth:d.token},{mpin:$('mpin').value.trim()});
-    S.base=(r.data||{}).baseUrl;if(!S.base)throw new Error('No baseUrl: '+JSON.stringify(r).slice(0,200));
+    d=r.data||{};S.base=d.baseUrl;S.tok=d.token;S.sid=d.sid;S.feed=d.feedUrl;S.hs=d.hsServerId;
+    if(!S.base)throw new Error('No baseUrl: '+JSON.stringify(r).slice(0,200));
   },
   H(){return{Authorization:S.ck}},
+  TH(){return{Authorization:S.ck,Auth:S.tok,Sid:S.sid,'neo-fin-key':'neotradeapi','Content-Type':'application/x-www-form-urlencoded'}},
   async master(seg){
     const r=await http('GET',S.base+'/script-details/1.0/masterscrip/file-paths',this.H());
     const u=((r.data&&r.data.filesPaths)||[]).find(x=>new RegExp(seg,'i').test(x));
@@ -112,24 +132,27 @@ const Kotak={
       const r=await http('GET',S.base+'/script-details/1.0/quotes/neosymbol/'+q+'/all',this.H());
       out.push(...(Array.isArray(r)?r:(r.data||[])));
     }return out
-  }
+  },
+  limits(){return http('POST',S.base+'/quick/user/limits'+sid(),this.TH(),{jData:JSON.stringify({seg:'ALL',exch:'ALL',prod:'ALL'})})},
+  order(o){return http('POST',S.base+'/quick/order/rule/ms/place'+sid(),this.TH(),{jData:JSON.stringify(o)})},
+  check(o){return http('POST',S.base+'/quick/user/check-margin'+sid(),this.TH(),{jData:JSON.stringify(o)})}
 };
 const num=v=>{const n=parseFloat(v);return isFinite(n)?n:0};
 const qLtp=q=>num(q.ltp??q.last_traded_price),qOi=q=>num(q.open_int??q.oi??q.openInterest),qTok=q=>String(q.exchange_token??q.instrument_token??'');
-
+ 
 function cols(csv){const L=csv.split(/\r?\n/),h=L[0].split(',').map(s=>s.trim().replace(/;$/,''));
   const ix=n=>h.findIndex(x=>x.toLowerCase()===n.toLowerCase());
-  return{L,h,tok:ix('pSymbol'),name:ix('pSymbolName'),typ:ix('pOptionType'),k:ix('dStrikePrice'),e:ix('lExpiryDate')}}
+  return{L,h,tok:ix('pSymbol'),name:ix('pSymbolName'),ts:ix('pTrdSymbol'),typ:ix('pOptionType'),k:ix('dStrikePrice'),e:ix('lExpiryDate')}}
 function parseMaster(csv,sym){
   const a=cols(csv),rows=[];
   for(let i=1;i<a.L.length;i++){const c=a.L[i].split(',');if(c.length<a.h.length-1)continue;
     if(c[a.name]!==sym||!/^(CE|PE)$/.test(c[a.typ]))continue;
-    const e=num(c[a.e]);rows.push({tok:c[a.tok],type:c[a.typ],k:num(c[a.k])/100,exp:e+(e<1.6e9?315513600:0)})}
+    const e=num(c[a.e]);rows.push({tok:c[a.tok],ts:(c[a.ts]||'').trim(),type:c[a.typ],k:num(c[a.k])/100,exp:e+(e<1.6e9?315513600:0)})}
   return rows
 }
 function names(csv){const a=cols(csv);return[...new Set(a.L.slice(1,4000).map(l=>l.split(',')[a.name]))].slice(0,12).join(', ')}
 const fmtD=s=>new Date(s*1000).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'2-digit',timeZone:'UTC'});
-
+ 
 /* ---------- analytics ---------- */
 function analyse(rows,spot){
   const ks=rows.map(r=>r.k),s=Math.min(...ks.slice(1).map((k,i)=>k-ks[i]).filter(d=>d>0));
@@ -142,8 +165,8 @@ function analyse(rows,spot){
   const a=rows.find(r=>r.k===atm);
   return{s,atm,pcr:coi?poi/coi:0,mp,cw,pw,straddle:a.ce.ltp+a.pe.ltp,ks}
 }
-
-/* ---------- predefined strategies: [side, strike, type] ---------- */
+function parity(rows){let b=null;for(const r of rows)if(r.ce.ltp>0&&r.pe.ltp>0){const d=Math.abs(r.ce.ltp-r.pe.ltp);if(!b||d<b.d)b={d,s:r.k+r.ce.ltp-r.pe.ltp}}return b&&b.s}
+ 
 const LIB={
 Bullish:{
  'Bull put spread':c=>[['SELL',c.pw,'PE'],['BUY',c.sn(c.pw-2*c.s),'PE']],
@@ -163,7 +186,7 @@ Volatile:{
  'Reverse iron condor':c=>[['BUY',c.sn(c.atm+2*c.s),'CE'],['SELL',c.sn(c.atm+4*c.s),'CE'],['BUY',c.sn(c.atm-2*c.s),'PE'],['SELL',c.sn(c.atm-4*c.s),'PE']]}
 };
 function pay(legs,x){return legs.reduce((a,l)=>{const v=l.t==='CE'?Math.max(0,x-l.k):Math.max(0,l.k-x);return a+(l.d==='BUY'?v-l.p:l.p-v)},0)}
-function profile(legs){ // payoff at expiry is piecewise linear: check 0 and each strike
+function profile(legs){
   const ks=[...new Set(legs.map(l=>l.k))].sort((a,b)=>a-b),pts=[0,...ks],ys=pts.map(x=>pay(legs,x)),top=ks[ks.length-1];
   const sl=pay(legs,top+1)-pay(legs,top);let mx=Math.max(...ys),mn=Math.min(...ys);
   if(sl>1e-9)mx=Infinity;if(sl<-1e-9)mn=-Infinity;
@@ -171,43 +194,228 @@ function profile(legs){ // payoff at expiry is piecewise linear: check 0 and eac
   if(ys[ys.length-1]*sl<0)be.push(top-ys[ys.length-1]/sl);
   return{mx,mn,be}
 }
-
+ 
 /* ---------- render ---------- */
-let ST=null;const n0=v=>Math.round(v).toLocaleString('en-IN'),fm=v=>Math.abs(v)===Infinity?'Unlimited':v.toFixed(1);
-function render(rows,spot,note){
-  const A=analyse(rows,spot),bias=A.pcr>=1.2?'Bullish':A.pcr<=0.8?'Bearish':'Neutral';
-  ST={rows,spot,A,bias};
-  const mx=Math.max(...rows.map(r=>Math.max(r.ce.oi,r.pe.oi)))||1;
-  const tr=rows.map(r=>`<tr class="${r.k===A.atm?'atm':''}"><td class="c"><i style="width:${r.ce.oi/mx*100}%"></i>${n0(r.ce.oi)}</td><td>${r.ce.ltp.toFixed(1)}</td><td class="k">${r.k}</td><td>${r.pe.ltp.toFixed(1)}</td><td class="p"><i style="width:${r.pe.oi/mx*100}%"></i>${n0(r.pe.oi)}</td></tr>`).join('');
-  $('out').innerHTML=`
-  <div class="card"><h2>Snapshot</h2><div class="kv">
-  <div><span>Spot${note?' (estimated)':''}</span><b>${spot.toFixed(2)}</b></div><div><span>PCR (OI)</span><b>${A.pcr.toFixed(2)}</b></div>
+let ST=null;
+const n0=v=>Math.round(v).toLocaleString('en-IN'),inr=v=>Math.abs(v)===Infinity?'Unlimited':'₹'+n0(v),tick=p=>(Math.round(p/0.05)*0.05).toFixed(2);
+function show(rows,spot,note,parityOn,auto){
+  const key=$('sym').value+'|'+$('exp').value;
+  if(ST&&ST.key===key&&auto&&$('view')){ST.rows=rows;ST.spot=spot;ST.note=note;ST.parity=parityOn;mapRows();paint();return}
+  ST={rows,spot,note,parity:parityOn,key};build();paint();setSpec();drawStrat();buildTicket();mapRows();if(!auto)setMode()
+}
+function build(){
+  const A=analyse(ST.rows,ST.spot),bias=A.pcr>=1.2?'Bullish':A.pcr<=0.8?'Bearish':'Neutral';
+  $('out').innerHTML=`<div class="card" id="snap"></div>
+  <div class="card"><h2>Strategy</h2><div class="row"><div><label>Market view</label><select id="view">${Object.keys(LIB).map(v=>`<option ${v===bias?'selected':''}>${v}</option>`).join('')}</select></div>
+  <div><label>Strategy</label><select id="strat"></select></div><div style="flex:.45"><label>Lots</label><input id="lots" type="number" min="1" step="1" value="1" inputmode="numeric"></div></div><div id="sc"></div><div id="mg"></div></div>
+  <div class="card" id="tkc"><h2>Order ticket</h2>
+  <div class="row"><div><label>Order type</label><select id="otype"><option value="L">Limit</option><option value="MKT">Market</option></select></div>
+  <div><label>Product</label><select id="prod"><option>NRML</option><option>MIS</option></select></div><div><label>Validity</label><select id="val"><option>DAY</option><option>IOC</option></select></div></div>
+  <div id="tkl"></div><p class="sub" id="tkt" style="margin:8px 0 0"></p>
+  <label class="chk"><input type="checkbox" id="dry" checked> Dry run (show orders, do not send)</label>
+  <button class="alt" id="mcheck">Check funds &amp; margin</button><p id="mgr" class="sub" style="margin:6px 0 0"></p><button id="place">Preview orders</button><div id="res" class="res hide"></div>
+  <p class="sub" style="margin-top:8px">Kotak says market orders are not allowed for retail API trading and are converted to limit orders, so prefer Limit. API orders may be accepted only from your registered static IP. Buy legs are sent first and sending stops at the first failure.</p></div>
+  <div class="card" id="pp"></div>
+  <div class="card scroll"><h2>Chain <small>(call OI · call LTP · strike · put LTP · put OI)</small></h2><table id="chain"></table></div>`;
+  $('view').onchange=fillStrat;$('strat').onchange=onStrat;$('lots').oninput=onStrat;
+  $('otype').onchange=()=>{buildTicket()};$('dry').onchange=()=>{$('place').textContent=$('dry').checked?'Preview orders':'Place orders (LIVE)';$('place').className=$('dry').checked?'':'live'};
+  $('place').onclick=place;$('mcheck').onclick=mCheck;drawPaper();fillStrat(true)
+}
+function paint(){
+  if(ST.parity){const p=parity(ST.rows);if(p)ST.spot=p}
+  const A=ST.A=analyse(ST.rows,ST.spot),bias=ST.bias=A.pcr>=1.2?'Bullish':A.pcr<=0.8?'Bearish':'Neutral',mx=Math.max(...ST.rows.map(r=>Math.max(r.ce.oi,r.pe.oi)))||1;
+  $('snap').innerHTML=`<h2>Snapshot</h2><div class="kv">
+  <div><span>Spot${ST.parity?' (estimated)':''}</span><b>${ST.spot.toFixed(2)}</b></div><div><span>PCR (OI)</span><b>${A.pcr.toFixed(2)}</b></div>
   <div><span>Max pain</span><b>${A.mp}</b></div><div><span>ATM straddle</span><b>${A.straddle.toFixed(1)}</b></div>
   <div><span>Put wall (support)</span><b>${A.pw}</b></div><div><span>Call wall (resistance)</span><b>${A.cw}</b></div></div>
-  <p class="sub" style="margin:8px 0 0">OI lean: <b>${bias}</b>. ${note||''}</p></div>
-  <div class="card"><h2>Strategy</h2>
-  <div class="row"><div><label>Market view</label><select id="view">${Object.keys(LIB).map(v=>`<option ${v===bias?'selected':''}>${v}</option>`).join('')}</select></div>
-  <div><label>Strategy</label><select id="strat"></select></div></div><div id="sc"></div></div>
-  <div class="card scroll"><h2>Chain <small>(call OI · call LTP · strike · put LTP · put OI)</small></h2><table>${tr}</table></div>`;
-  $('view').onchange=fillStrat;$('strat').onchange=drawStrat;fillStrat();
+  <p class="sub" style="margin:8px 0 0">OI lean: <b>${bias}</b>. ${ST.note||''}</p>`;
+  $('chain').innerHTML=ST.rows.map(r=>`<tr class="${r.k===A.atm?'atm':''}"><td class="c"><i style="width:${r.ce.oi/mx*100}%"></i>${n0(r.ce.oi)}</td><td>${r.ce.ltp.toFixed(1)}</td><td class="k">${r.k}</td><td>${r.pe.ltp.toFixed(1)}</td><td class="p"><i style="width:${r.pe.oi/mx*100}%"></i>${n0(r.pe.oi)}</td></tr>`).join('');
+  paperTick();drawPaper();if($('sc')&&ST.spec)drawStrat()
 }
-function fillStrat(){$('strat').innerHTML=Object.keys(LIB[$('view').value]).map(n=>`<option>${n}</option>`).join('');drawStrat()}
+function fillStrat(init){$('strat').innerHTML=Object.keys(LIB[$('view').value]).map(n=>`<option>${n}</option>`).join('');if(!init)onStrat()}
+function onStrat(){setSpec();drawStrat();buildTicket()}
+function setSpec(){
+  const A=analyse(ST.rows,ST.spot),c={atm:A.atm,pw:A.pw,cw:A.cw,s:A.s,sn:k=>A.ks.reduce((b,x)=>Math.abs(x-k)<Math.abs(b-k)?x:b)};
+  ST.spec=LIB[$('view').value][$('strat').value](c)
+}
+function qtyNow(){const l=Math.max(1,Math.floor(+$('lots').value||1));return{l,q:l*(LOT[$('sym').value]||1)}}
 function drawStrat(){
-  const{rows,spot,A,bias}=ST,v=$('view').value,name=$('strat').value;
-  const c={atm:A.atm,pw:A.pw,cw:A.cw,s:A.s,sn:k=>A.ks.reduce((b,x)=>Math.abs(x-k)<Math.abs(b-k)?x:b)};
-  const legs=LIB[v][name](c).map(([d,k,t])=>({d,k,t,p:(rows.find(r=>r.k===k)||{ce:{ltp:0},pe:{ltp:0}})[t==='CE'?'ce':'pe'].ltp}));
-  const net=legs.reduce((t,l)=>t+(l.d==='SELL'?l.p:-l.p),0),P=profile(legs);
-  const em=A.straddle,fit=v==='Volatile'?`ATM straddle implies a move of about ±${em.toFixed(0)} (${(em/spot*100).toFixed(1)}%); this pays off only if the move is larger.`:
+  const{rows,spot,A,bias}=ST,v=$('view').value,name=$('strat').value,{l:lots,q}=qtyNow();
+  const legs=ST.legs=ST.spec.map(([d,k,t])=>{const o=(rows.find(r=>r.k===k)||{})[t==='CE'?'ce':'pe']||{};return{d,k,t,p:o.ltp||0,ts:o.ts,tok:o.tok}});
+  const net=legs.reduce((t,x)=>t+(x.d==='SELL'?x.p:-x.p),0),P=profile(legs),em=A.straddle;
+  const fit=v==='Volatile'?`ATM straddle implies a move of about ±${em.toFixed(0)} (${(em/spot*100).toFixed(1)}%); this pays off only if the move is larger.`:
     v===bias?`Matches the current OI lean (PCR ${A.pcr.toFixed(2)}).`:`Goes against the current OI lean (${bias}, PCR ${A.pcr.toFixed(2)}). Treat with caution.`;
   $('sc').innerHTML=`<p class="sub" style="margin-top:8px">${fit}</p>`+
-  legs.map(l=>`<div class="leg"><span class="${l.d==='BUY'?'buy':'sell'}">${l.d} ${l.k} ${l.t}</span><span>${l.p.toFixed(1)}</span></div>`).join('')+
-  `<div class="kv" style="margin-top:8px"><div><span>Net ${net>=0?'credit':'debit'} / unit</span><b>${Math.abs(net).toFixed(1)}</b></div>
-  <div><span>Max profit / unit</span><b>${fm(P.mx)}</b></div><div><span>Max loss / unit</span><b>${fm(-P.mn)}</b></div>
+  legs.map(x=>`<div class="leg"><span class="${x.d==='BUY'?'buy':'sell'}">${x.d} ${x.k} ${x.t}</span><span>${x.p.toFixed(2)}</span></div>`).join('')+
+  `<div class="kv" style="margin-top:8px"><div><span>Net ${net>=0?'credit':'debit'} (${lots} lot${lots>1?'s':''} × ${LOT[$('sym').value]} = ${q} qty)</span><b>${inr(Math.abs(net)*q)}</b></div>
+  <div><span>Max profit</span><b>${inr(P.mx*q)}</b></div><div><span>Max loss</span><b>${inr(-P.mn*q)}</b></div>
   <div><span>Breakeven</span><b>${P.be.map(x=>x.toFixed(0)).join(' / ')||'-'}</b></div></div>
   ${/undefined/.test(name)?'<p class="warn">Short strangle has no cap on loss and needs large margin.</p>':''}
-  <p class="sub" style="margin-top:8px">Payoff at expiry using current LTPs, per unit (multiply by lot size). A screen built from OI and PCR only; it ignores IV, events and margin.</p>`;
+  <p class="sub" style="margin-top:8px">Expiry payoff at current LTPs, before charges. Screen built from OI and PCR only; it ignores IV and events.</p>`;
+  ST.mg={legs,P,q};ST.legKey=name+'|'+lots+'|'+JSON.stringify(ST.spec);drawMargin();
 }
-
+function ordered(){return ST.legs.map((l,i)=>({l,i})).sort((a,b)=>(a.l.d==='BUY'?0:1)-(b.l.d==='BUY'?0:1))}
+function buildTicket(){
+  const{q}=qtyNow(),mkt=$('otype').value==='MKT';
+  $('tkl').innerHTML=ordered().map(({l,i})=>`<div class="leg"><span class="${l.d==='BUY'?'buy':'sell'}">${l.d} ${l.k} ${l.t} <small>×${q}</small></span><input id="lp${i}" inputmode="decimal" value="${mkt?'':tick(l.p)}" ${mkt?'disabled placeholder="MKT"':''}></div>`).join('');
+  [...$('tkl').querySelectorAll('input')].forEach(e=>e.oninput=tkTot);tkTot()
+}
+function tkTot(){
+  if($('otype').value==='MKT'){$('tkt').textContent='Market: price decided at fill.';return}
+  const{q}=qtyNow();let n=0;ST.legs.forEach((l,i)=>{const p=+$('lp'+i).value||0;n+=l.d==='SELL'?p:-p});
+  $('tkt').textContent=`At your limit prices: net ${n>=0?'credit':'debit'} ${inr(Math.abs(n)*q)}.`
+}
+/* ---------- margin ---------- */
+function drawMargin(){
+  if(!$('mg')||!ST.mg)return;
+  const{legs,P,q}=ST.mg,buy=legs.filter(l=>l.d==='BUY').reduce((t,l)=>t+l.p,0)*q;
+  const est=P.mn===-Infinity?null:Math.max(-P.mn*q,buy),av=S.demo?500000:S.avail;
+  const kt=S.kmg&&S.kmg.key===ST.legKey?S.kmg.total:null,need=est!=null?est:kt;
+  const sf=av!=null&&need!=null?Math.max(0,need-av):null;
+  $('mg').innerHTML=`<h2 style="margin-top:14px">Margin</h2><div class="kv">
+  <div><span>Available${S.demo?' (demo)':''}</span><b>${av!=null?inr(av):'tap Check'}</b></div>
+  <div><span>Required${est!=null?' (estimate)':kt!=null?' (Kotak)':''}</span><b>${need!=null?inr(need):'tap Check'}</b></div>
+  <div><span>Shortfall</span><b class="${sf>0?'sell':'buy'}">${sf==null?'-':sf>0?inr(sf):'None'}</b></div>
+  <div><span>Kotak check (legs alone)</span><b>${kt!=null?inr(kt):'-'}</b></div></div>
+  <p class="sub" style="margin-top:8px">${est==null?'This strategy has no cap on loss, so the estimate is not possible; use the Kotak figure, which has no hedge offset. ':'Estimate = worst-case loss (or premium for a debit strategy). Kotak usually blocks somewhat more for hedged credit spreads. '}The hedge benefit applies only after the buy legs are filled, so buys go first.</p>`
+}
+async function mCheck(){
+  const R=$('mgr');R.textContent='Checking…';
+  try{if(S.demo){R.textContent='Demo mode: using a demo balance of ₹5,00,000.';drawMargin();return}
+    const r=await Kotak.limits(),d=Array.isArray(r)?r[0]:r,f=d&&(d.Net??d.net??d.AvailableMargin);
+    if(f!=null)S.avail=num(f);else R.textContent='Funds response: '+JSON.stringify(r).slice(0,200);
+    const{q}=qtyNow(),seg=IDX[$('sym').value].seg;let tot=0,ok=true,raw='';
+    for(const l of ST.legs){try{const x=await Kotak.check({brkName:'KOTAK',brnchId:'ONLINE',exSeg:seg,prc:String(tick(l.p)),prcTp:'L',prod:$('prod').value,qty:String(q),tok:l.tok,trnsTp:l.d==='BUY'?'B':'S'});
+      const o=Array.isArray(x)?x[0]:x,v=o&&(o.reqdMrgn??o.ordMrgn??o.totMrgn);if(v==null){ok=false;raw=JSON.stringify(x).slice(0,200)}else tot+=num(v)}catch(e){ok=false;raw=String(e.message||e).slice(0,200)}}
+    S.kmg=ok?{key:ST.legKey,total:tot}:null;if(!ok)R.textContent='Kotak margin check unavailable: '+raw;else if(f!=null)R.textContent='';
+    drawMargin()
+  }catch(e){R.textContent='Funds/margin error: '+(e.message||e)}
+}
+ 
+/* ---------- paper trades (dry run) ---------- */
+let PP=[];try{PP=JSON.parse(localStorage.getItem('os_pp')||'[]')}catch{}
+const savePP=()=>{try{localStorage.setItem('os_pp',JSON.stringify(PP))}catch{}};
+function ltpOf(b,l){if(!ST)return null;const[k0,k1]=ST.key.split('|');if(k0!==b.sym||k1!==b.exp)return null;
+  const r=ST.rows.find(x=>x.k===l.k);return r?(l.t==='CE'?r.ce.ltp:r.pe.ltp):null}
+function paperTick(){
+  let ch=false;
+  for(const b of PP){if(b.closed)continue;
+    for(const l of b.legs){const p=ltpOf(b,l);if(!(p>0))continue;
+      if(l.status==='PENDING'&&l.limit!=null&&(l.d==='BUY'?p<=l.limit:p>=l.limit)){l.status='FILLED';l.entry=l.limit;ch=true}}
+    if(b.legs.filter(l=>l.d==='BUY').every(l=>l.status==='FILLED'||l.status==='CLOSED'))
+      for(const l of b.legs)if(l.status==='WAIT'){const p=ltpOf(b,l);if(!(p>0))continue;ch=true;
+        if(l.limit==null||p>=l.limit){l.status='FILLED';l.entry=p}else l.status='PENDING'}}
+  if(ch)savePP()
+}
+function newPaper(ord,q,mkt){
+  const b={id:Date.now(),sym:$('sym').value,exp:$('exp').value,q,legs:[],closed:false,t:new Date().toLocaleTimeString('en-IN')};
+  const hasBuy=ord.some(x=>x.l.d==='BUY');
+  for(const x of ord){const l={d:x.l.d,k:x.l.k,t:x.l.t,ts:x.o.ts,limit:mkt?null:+x.o.pr,status:'PENDING'};
+    if(x.l.d==='SELL'&&hasBuy)l.status='WAIT';else{const p=ltpOf(b,l)||x.l.p;
+      if(l.limit==null||(l.d==='BUY'?p<=l.limit:p>=l.limit)){l.status='FILLED';l.entry=p}}
+    b.legs.push(l)}
+  PP.unshift(b);paperTick();savePP();drawPaper();return b
+}
+function sqoff(id){
+  const b=PP.find(x=>x.id===id);if(!b)return;
+  const need=b.legs.filter(l=>l.status==='FILLED');
+  if(need.some(l=>!(ltpOf(b,l)>0))){alert('Open '+b.sym+' with the same expiry so a live price is available for square-off.');return}
+  b.legs.forEach(l=>{if(l.status==='PENDING'||l.status==='WAIT')l.status='CANCELLED'});
+  need.sort((a,c)=>(a.d==='SELL'?0:1)-(c.d==='SELL'?0:1)).forEach(l=>{l.exit=ltpOf(b,l);l.status='CLOSED'});
+  b.closed=true;savePP();drawPaper()
+}
+function clearPaper(){if(confirm('Delete all paper trades?')){PP=[];savePP();drawPaper()}}
+function drawPaper(){
+  const el=$('pp');if(!el)return;
+  if(!PP.length){el.innerHTML='<h2>Paper trades</h2><p class="sub">Place a dry run and the orders appear here with live profit and loss, and a square-off button.</p>';return}
+  let open=0,real=0;
+  const html=PP.map(b=>{let bp=0;
+    const rows=b.legs.map(l=>{const p=ltpOf(b,l);let pl=null,txt=l.status;
+      if(l.status==='FILLED'&&p>0){pl=(l.d==='BUY'?p-l.entry:l.entry-p)*b.q;open+=pl;bp+=pl}
+      if(l.status==='CLOSED'){pl=(l.d==='BUY'?l.exit-l.entry:l.entry-l.exit)*b.q;real+=pl;bp+=pl}
+      const px=l.status==='FILLED'||l.status==='CLOSED'?'@ '+l.entry.toFixed(2)+(l.status==='CLOSED'?' → '+l.exit.toFixed(2):''):l.limit!=null?'limit '+l.limit.toFixed(2):'market';
+      return `<div class="leg"><span class="${l.d==='BUY'?'buy':'sell'}">${l.d} ${l.k} ${l.t} <small>${txt==='WAIT'?'WAITING for buy fill':txt} ${px}</small></span><span class="${pl>=0?'buy':'sell'}">${pl==null?'-':(pl>=0?'+':'-')+inr(Math.abs(pl))}</span></div>`}).join('');
+    return `<div style="margin-top:10px"><b>${b.sym} ${b.closed?'(closed)':''}</b> <small>${b.t} · qty ${b.q}</small>${rows}
+      <div class="leg"><span>Trade P&amp;L</span><b class="${bp>=0?'buy':'sell'}">${(bp>=0?'+':'-')+inr(Math.abs(bp))}</b></div>${b.closed?'':`<button class="alt" onclick="sqoff(${b.id})">Square off at live price</button>`}</div>`}).join('');
+  el.innerHTML=`<h2>Paper trades (dry run)</h2><div class="kv"><div><span>Open P&amp;L (live)</span><b class="${open>=0?'buy':'sell'}">${(open>=0?'+':'-')+inr(Math.abs(open))}</b></div><div><span>Realized</span><b class="${real>=0?'buy':'sell'}">${(real>=0?'+':'-')+inr(Math.abs(real))}</b></div></div>`+html+
+  `<p class="sub" style="margin-top:8px">Simulation only: fills use live LTP with no slippage, charges or margin check. Buy limits fill when LTP is at or below your price, sell limits when at or above. Sell legs wait until every buy leg is filled. Square-off buys back short legs first, then sells long legs.</p><button class="alt" onclick="clearPaper()">Clear paper trades</button>`
+}
+ 
+/* ---------- order placement ---------- */
+async function sendLegs(list,R,base){
+  const out=[];
+  for(const x of list){let r;try{r=await Kotak.order(x.o)}catch(e){r={err:String(e.message||e)}}
+    const ok=r&&(r.stat==='Ok'||r.nOrdNo);out.push((ok?'OK   ':'FAIL ')+x.l.d+' '+x.o.ts+'  '+JSON.stringify(r).slice(0,160));R.textContent=base+out.join('\n');
+    if(!ok){R.textContent+='\nStopped: remaining legs were NOT sent. Check the Neo order book.';return false}}
+  return true
+}
+async function place(){
+  const R=$('res');R.classList.remove('hide');
+  try{const sym=$('sym').value,seg=IDX[sym].seg,lots=+$('lots').value,{q}=qtyNow(),mkt=$('otype').value==='MKT',dry=$('dry').checked||S.demo;
+    if(!(Number.isInteger(lots)&&lots>=1))throw new Error('Lots must be a whole number, 1 or more.');
+    if(lots>MAXLOTS)throw new Error('Max '+MAXLOTS+' lots per ticket (safety limit in the code).');
+    const ord=ordered().map(({l,i})=>{const pr=mkt?0:+$('lp'+i).value,ts=l.ts||(S.demo?sym+' '+l.k+l.t:'');
+      if(!mkt&&!(pr>0))throw new Error('Enter a price for '+l.d+' '+l.k+' '+l.t);
+      if(!ts)throw new Error('No trading symbol for '+l.k+' '+l.t+' (missing master).');
+      return{l,o:{am:'NO',dq:'0',es:seg,mp:'0',pc:$('prod').value,pf:'N',pr:mkt?'0':tick(pr),pt:$('otype').value,qt:String(q),rt:$('val').value,tp:'0',ts,tt:l.d==='BUY'?'B':'S'}}});
+    const sum=ord.map(x=>`${x.l.d} ${x.o.ts}  qty ${q}  ${mkt?'MARKET':'@ '+x.o.pr}  ${x.o.pc}/${x.o.rt}`).join('\n');
+    if(dry){newPaper(ord,q,mkt);R.textContent='DRY RUN: nothing sent to Kotak. A paper trade was created (see Paper trades below).\nOrder sequence, buys first:\n'+sum;return}
+    const buys=ord.filter(x=>x.l.d==='BUY'),sells=ord.filter(x=>x.l.d==='SELL');
+    if(!confirm('Send '+(buys.length?buys.length+' BUY order(s) now':sells.length+' SELL order(s) now')+'?\n\nFull plan, buys first:\n'+sum+(buys.length&&sells.length?'\n\nSell legs are sent only after you confirm the buys are filled.':'')))return;
+    R.textContent='Sending…';
+    const first=buys.length?buys:sells,ok=await sendLegs(first,R,'');
+    if(!ok)return;
+    if(buys.length&&sells.length){
+      const base=R.textContent+'\n\nBuy legs sent. Open the Neo order book and wait until they are FILLED; the hedge margin benefit starts only then.\n';R.textContent=base;
+      const b=document.createElement('button');b.className='live';b.textContent='Send sell legs now';
+      b.onclick=async()=>{if(!confirm('Are the buy legs FILLED in the Neo order book? Send the sell legs now?'))return;b.remove();R.textContent=base+'Sending sell legs…';
+        if(await sendLegs(sells,R,base+'\n'))R.textContent+='\nAll legs sent. Verify in the Neo order book.'};
+      R.appendChild(b)
+    }else R.textContent+='\nAll legs sent. Verify in the Neo order book.'
+  }catch(e){R.textContent='Error: '+(e.message||e)}
+}
+ 
+/* ---------- live ticks (Kotak native_batch WebSocket) ---------- */
+const ENUM={nse_cm:1,nse_fo:2,cde_fo:3,nse_com:4,bse_cm:5,bse_fo:6,bse_cd:7,bse_co:8,mcx_fo:9,ncd_co:10};
+const W={ws:null,div:{},map:{},on:false};let pend=0;
+function mapRows(){W.map={};if(!ST)return;const e=ENUM[IDX[$('sym').value].seg];ST.rows.forEach(r=>{if(r.ce.tok)W.map[e+'|'+r.ce.tok]=r.ce;if(r.pe.tok)W.map[e+'|'+r.pe.tok]=r.pe})}
+function sched(){if(pend)return;pend=setTimeout(()=>{pend=0;if(ST)paint()},400)}
+function wsStop(){W.on=false;const w=W.ws;W.ws=null;if(w){try{w.close()}catch{}}}
+function wsStart(){
+  wsStop();if(!S.feed||!ST||S.demo)return;W.on=true;
+  const ws=W.ws=new WebSocket(S.feed.replace(/^http/,'ws'));ws.binaryType='arraybuffer';
+  ws.onopen=()=>ws.send(JSON.stringify({user:S.ucc,auth:S.sid,format:'native_batch',source:'NEOTRADEAPI',sdk_version:1.1,sdk_date:'2026-10-28'}));
+  ws.onmessage=e=>{
+    if(typeof e.data==='string'){let m;try{m=JSON.parse(e.data)}catch{return}
+      if(m.message_code===1117||m.message_code===1119)for(const k in m.exchanges||{})W.div[ENUM[k]]=m.exchanges[k].divider;
+      if(m.message_code===1117){wsSub(ws);$('wsst').textContent='Live ticks connected'}
+      if(m.message_code===1120){$('wsst').textContent='Live feed auth failed: '+(m.message||'');W.on=false}
+      return}
+    decode(e.data)};
+  ws.onerror=()=>{$('wsst').textContent='Live feed error'};
+  ws.onclose=()=>{if(W.ws===ws&&W.on&&$('mode').value==='live'){$('wsst').textContent='Live feed reconnecting…';setTimeout(()=>{if(W.on&&W.ws===ws)wsStart()},3000)}}
+}
+function wsSub(ws){
+  const seg=IDX[$('sym').value].seg,t=Object.keys(W.map).map(k=>seg+'|'+k.split('|')[1]);
+  for(let i=0;i<t.length;i+=40)ws.send(JSON.stringify({event:'subscribeScrips',inputtoken:t.slice(i,i+40).join(',')}));
+  if(S.spotSym)ws.send(JSON.stringify({event:'subscribeIndices',inputtoken:S.spotSym}))
+}
+function decode(buf){
+  const dv=new DataView(buf);let o=0,hit=false;
+  while(o+2<=buf.byteLength){const n=dv.getUint16(o,true);if(n<9||o+n>buf.byteLength)break;
+    const mc=dv.getUint16(o+2,true),ex=dv.getInt8(o+4),lv=dv.getUint8(o+5),d=W.div[ex]||100;
+    if(mc===7208&&(lv===1||lv===2||lv===4||lv===8)){
+      const tok=dv.getUint32(o+9,true),x=W.map[ex+'|'+tok];
+      if(x){if(lv===1)x.ltp=dv.getUint32(o+21,true)/d;else{x.ltp=dv.getUint32(o+69,true)/d;x.oi=dv.getUint32(o+103,true)}hit=true}}
+    else if(mc===7207&&ST&&!ST.parity){const v=dv.getInt32(o+29,true)/d;if(v>0){ST.spot=v;hit=true}}
+    o+=n}
+  if(hit)sched()
+}
+let TM=null;
+function setMode(){clearInterval(TM);wsStop();$('wsst').textContent='';const m=$('mode').value;
+  if(m==='auto')TM=setInterval(()=>load(true),5000);if(m==='live'&&ST){mapRows();wsStart()}}
+ 
+/* ---------- demo + wiring ---------- */
 function demo(){
   const spot=24512.4,rows=[];
   for(let i=-12;i<=12;i++){const k=24500+i*50,d=Math.abs(i);
@@ -215,10 +423,8 @@ function demo(){
                pe:{oi:Math.max(2e4,(i<=0?1.1e6:3e5)*Math.exp(-((i+4)**2)/30)*(1+(i%2)/7)),ltp:Math.max(1,k-spot+110-d*4)}})}
   return{spot,rows}
 }
-
-/* ---------- wiring ---------- */
 const fail=e=>{$('err').textContent=$('err2').textContent=String(e.message||e)};
-$('demo').onclick=()=>{$('login').classList.add('hide');const d=demo();render(d.rows,d.spot)};
+$('demo').onclick=()=>{S.demo=true;$('login').classList.add('hide');const d=demo();show(d.rows,d.spot,'Demo data.',false,false)};
 $('go').onclick=async()=>{
   try{$('err').textContent='';S.ck=$('ck').value.trim();S.ucc=$('ucc').value.trim();S.mob=$('mob').value.trim();
     ['ck','ucc','mob'].forEach(i=>localStorage.setItem('os_'+i,$(i).value.trim()));
@@ -227,31 +433,38 @@ $('go').onclick=async()=>{
   }catch(e){fail(e)}finally{$('go').textContent='Log in'}
 };
 async function switchIdx(){
-  try{$('err2').textContent='';const sym=$('sym').value,seg=IDX[sym].seg;
+  try{$('err2').textContent='';ST=null;wsStop();const sym=$('sym').value,seg=IDX[sym].seg;
     if(!M[seg])M[seg]=await Kotak.master(seg);
     const now=Date.now()/1000-86400,ex=[...new Set(parseMaster(M[seg],sym).map(r=>r.exp))].filter(e=>e>=now).sort((a,b)=>a-b).slice(0,4);
     if(!ex.length)throw new Error('No '+sym+' options found in '+seg+' master. Names seen: '+names(M[seg]));
-    $('exp').innerHTML=ex.map(e=>`<option value="${e}">${fmtD(e)}</option>`).join('');await load()
+    $('exp').innerHTML=ex.map(e=>`<option value="${e}">${fmtD(e)}</option>`).join('');await load(false)
   }catch(e){fail(e)}
 }
-$('sym').onchange=switchIdx;$('load').onclick=load;
-async function load(){
+$('sym').onchange=switchIdx;$('exp').onchange=()=>{ST=null;load(false)};$('load').onclick=()=>load(false);$('mode').onchange=setMode;
+$('fundsb').onclick=async()=>{
+  if(S.demo){$('funds').textContent='Funds are not available in demo mode.';return}
+  try{$('funds').textContent='Checking funds…';const r=await Kotak.limits(),d=Array.isArray(r)?r[0]:r;
+    const f=d&&(d.Net??d.net??d.AvailableMargin);
+    $('funds').textContent=f!=null?`Available (Net): ₹${n0(num(f))}${d.MarginUsed!=null?'   Margin used: ₹'+n0(num(d.MarginUsed)):''}`:'Funds response: '+JSON.stringify(r).slice(0,220)
+  }catch(e){$('funds').textContent='Funds error: '+(e.message||e)}
+};
+let busy=false;
+async function load(auto){
+  if(busy)return;busy=true;
   try{$('err2').textContent='';const sym=$('sym').value,cfg=IDX[sym],ex=+$('exp').value;
-    let spot=0;
-    for(const c of cfg.spot){try{const q=await Kotak.quotes([c]);spot=qLtp(q[0]||{});if(spot)break}catch{}}
+    let spot=0;S.spotSym='';
+    for(const c of cfg.spot){try{const q=await Kotak.quotes([c]);spot=qLtp(q[0]||{});if(spot){S.spotSym=c;break}}catch{}}
     const all=parseMaster(M[cfg.seg],sym).filter(r=>r.exp===ex),ks=[...new Set(all.map(r=>r.k))].sort((a,b)=>a-b);
     const st=Math.min(...ks.slice(1).map((k,i)=>k-ks[i]).filter(d=>d>0)),ctr=spot||ks[Math.floor(ks.length/2)],w=(spot?12:25)*st;
     const near=all.filter(r=>Math.abs(r.k-ctr)<=w);
     const qs=await Kotak.quotes(near.map(r=>cfg.seg+'|'+r.tok)),byT={};qs.forEach(q=>byT[qTok(q)]=q);
-    const m={};near.forEach(r=>{const q=byT[r.tok]||{};(m[r.k]=m[r.k]||{k:r.k})[r.type==='CE'?'ce':'pe']={oi:qOi(q),ltp:qLtp(q)}});
-    let rows=Object.values(m).filter(r=>r.ce&&r.pe).sort((a,b)=>a.k-b.k),note='';
-    if(!spot){ // fallback: put-call parity at the strike where CE and PE prices are closest
-      let b=null;for(const r of rows)if(r.ce.ltp>0&&r.pe.ltp>0){const d=Math.abs(r.ce.ltp-r.pe.ltp);if(!b||d<b.d)b={d,s:r.k+r.ce.ltp-r.pe.ltp}}
-      if(!b)throw new Error('Could not get spot or option prices (market closed?).');
-      spot=b.s;rows=rows.filter(r=>Math.abs(r.k-spot)<=12*st);note='Index quote was unavailable, so spot comes from put-call parity (close to the futures price).'}
+    const m={};near.forEach(r=>{const q=byT[r.tok]||{};(m[r.k]=m[r.k]||{k:r.k})[r.type==='CE'?'ce':'pe']={oi:qOi(q),ltp:qLtp(q),tok:r.tok,ts:r.ts}});
+    let rows=Object.values(m).filter(r=>r.ce&&r.pe).sort((a,b)=>a.k-b.k),note='',par=false;
+    if(!spot){const p=parity(rows);if(!p)throw new Error('Could not get spot or option prices (market closed?).');
+      spot=p;par=true;rows=rows.filter(r=>Math.abs(r.k-spot)<=12*st);note='Index quote was unavailable, so spot comes from put-call parity (close to the futures price).'}
     if(rows.length<5)throw new Error('Too few strikes parsed; check quote field names in qLtp/qOi.');
-    render(rows,spot,note)
-  }catch(e){fail(e)}
+    show(rows,spot,note,par,!!auto)
+  }catch(e){fail(e)}finally{busy=false}
 }
 </script>
  </body>
