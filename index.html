@@ -3,38 +3,66 @@
  <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <title>Option Strategist</title>
+  <title>Kotak Neo Options</title>
   <style>
-:root{--bg:#eef1ee;--ink:#1c2a2e;--mut:#5d6d70;--card:#fbfcfb;--line:#cfd8d4;--ce:#2457a6;--pe:#b7791f;--ok:#2f7d4f;--bad:#b23a3a;color-scheme:light dark}
-@media(prefers-color-scheme:dark){:root{--bg:#141c1e;--ink:#e4ece8;--mut:#93a5a6;--card:#1c2729;--line:#2f3f41;--ce:#6c9bf0;--pe:#e0a64a;--ok:#5ec28a;--bad:#e27878}}
-*{box-sizing:border-box}html,body{margin:0}
-body{background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,sans-serif;padding:env(safe-area-inset-top) 12px calc(env(safe-area-inset-bottom) + 16px)}
-h1{font:600 20px Georgia,serif;margin:14px 0 2px}h2{font:600 15px Georgia,serif;margin:0 0 8px}
+:root{--bg:#f2f5f9;--card:#fff;--ink:#0f1b2d;--mut:#64748b;--line:#e2e8f0;--tile:#f1f5f9;--acc:#2563eb;--acc2:#1d4ed8;--ce:#2563eb;--pe:#d97706;--ok:#16a34a;--bad:#dc2626;--warn:#d97706;--pur:#7c3aed;--shadow:0 1px 2px rgba(15,27,45,.06),0 4px 14px rgba(15,27,45,.06);color-scheme:light dark}
+@media(prefers-color-scheme:dark){:root{--bg:#0a111d;--card:#121b2c;--ink:#e6edf7;--mut:#8aa0bd;--line:#223049;--tile:#182338;--acc:#4f8cff;--acc2:#3b7bf5;--ce:#6aa0ff;--pe:#fbbf24;--ok:#34d399;--bad:#f87171;--warn:#fbbf24;--pur:#a78bfa;--shadow:0 1px 2px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.35)}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:env(safe-area-inset-top) 12px calc(env(safe-area-inset-bottom) + 20px)}
+.hero{display:flex;align-items:center;justify-content:space-between;margin:14px 0 4px}
+.brand{font:700 22px Georgia,serif;letter-spacing:.2px}.brand b{color:var(--acc)}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:5px 11px;border-radius:999px;background:var(--tile);color:var(--mut);border:1px solid var(--line)}
+.pill i{width:8px;height:8px;border-radius:50%;background:var(--mut);display:inline-block}
+.pill.live{color:var(--ok)}.pill.live i{background:var(--ok);box-shadow:0 0 0 3px rgba(22,163,74,.25)}
+.pill.auto{color:var(--warn)}.pill.auto i{background:var(--warn)}
+h2{font:700 15px system-ui,sans-serif;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+h2::before{content:"";width:4px;height:16px;border-radius:2px;background:var(--acc);flex:none}
 .sub{color:var(--mut);font-size:13px;margin:0 0 12px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin:10px 0}
-label{display:block;font-size:12px;color:var(--mut);margin:8px 0 2px}
-input,select{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-size:15px}
-.row{display:flex;gap:8px}.row>*{flex:1}
-button{padding:11px;border:0;border-radius:8px;background:var(--ink);color:var(--bg);font-size:15px;font-weight:600;width:100%;margin-top:10px}
-button.alt{background:transparent;color:var(--ink);border:1px solid var(--line)}
-button.live{background:var(--bad);color:#fff}
-.kv{display:grid;grid-template-columns:1fr 1fr;gap:8px}.kv b{display:block;font-size:18px;font-variant-numeric:tabular-nums}.kv span{font-size:12px;color:var(--mut)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin:12px 0;box-shadow:var(--shadow)}
+label{display:block;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--mut);margin:12px 0 5px}
+input,select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:12px;background:var(--tile);color:var(--ink);font-size:15px;outline:none}
+input:focus,select:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(37,99,235,.2)}
+.row{display:flex;gap:8px}.row>*{flex:1;min-width:0}
+button{padding:12px;border:0;border-radius:12px;background:linear-gradient(180deg,var(--acc),var(--acc2));color:#fff;font-size:15px;font-weight:700;width:100%;margin-top:10px;box-shadow:0 2px 8px rgba(37,99,235,.35);transition:transform .08s,filter .15s}
+button:active{transform:scale(.98);filter:brightness(.94)}
+button.alt{background:var(--tile);color:var(--ink);border:1px solid var(--line);box-shadow:none}
+button.live{background:linear-gradient(180deg,#ef4444,#b91c1c);color:#fff;box-shadow:0 2px 8px rgba(220,38,38,.4)}
+button.warnb{background:linear-gradient(180deg,#f59e0b,#d97706);color:#fff;box-shadow:0 2px 8px rgba(217,119,6,.4)}
+button.okb{background:linear-gradient(180deg,#22c55e,#16a34a);color:#fff;box-shadow:0 2px 8px rgba(22,163,74,.4)}
+.btns{display:flex;gap:8px}.btns button{flex:1}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{width:auto;margin:0;padding:8px 14px;border-radius:999px;font-size:13px;font-weight:700;background:var(--tile);color:var(--mut);border:1px solid var(--line);box-shadow:none}
+.chip.on{background:var(--acc);color:#fff;border-color:var(--acc);box-shadow:0 2px 8px rgba(37,99,235,.3)}
+.chip[data-v="Bullish"].on,.chip[data-v="live"].on{background:var(--ok);border-color:var(--ok)}
+.chip[data-v="Bearish"].on{background:var(--bad);border-color:var(--bad)}
+.chip[data-v="Volatile"].on{background:var(--warn);border-color:var(--warn)}
+.chip[data-v="Futures + hedge"].on{background:var(--pur);border-color:var(--pur)}
+.sr{display:none}
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.kv>div{background:var(--tile);border-radius:12px;padding:10px 12px}
+.kv b{display:block;font-size:18px;font-variant-numeric:tabular-nums;margin-top:2px}.kv span{font-size:11px;color:var(--mut);font-weight:600}
 .scroll{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
-td,th{padding:4px 6px;text-align:right;white-space:nowrap}
-td.k{text-align:center;font-weight:700}tr.atm td.k{background:var(--ink);color:var(--bg);border-radius:4px}
-td.c,td.p{position:relative;z-index:0}td i{position:absolute;top:3px;bottom:3px;z-index:-1;opacity:.28}
+td,th{padding:5px 6px;text-align:right;white-space:nowrap}
+td.k{text-align:center;font-weight:700}tr.atm td.k{background:var(--acc);color:#fff;border-radius:6px}
+tr+tr td{border-top:1px solid var(--line)}
+td.c,td.p{position:relative;z-index:0}td i{position:absolute;top:4px;bottom:4px;z-index:-1;opacity:.25;border-radius:3px}
 td.c i{right:0;background:var(--ce)}td.p i{left:0;background:var(--pe)}
-.leg{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding:4px 0;gap:8px}
-.leg input{width:100px;padding:6px;text-align:right}
+.leg{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding:7px 0;gap:8px}
+.leg input{width:104px;padding:7px 9px;text-align:right}
 .buy{color:var(--ok)}.sell{color:var(--bad)}#err{color:var(--bad);font-size:13px;white-space:pre-wrap}
 .hide{display:none}small{color:var(--mut)}.warn{color:var(--bad);font-size:13px}
-.res{white-space:pre-wrap;font:12px/1.4 ui-monospace,monospace;background:var(--bg);border-radius:8px;padding:8px;margin-top:8px}
-.chk{display:flex;gap:8px;align-items:center;margin-top:10px;font-size:14px;color:var(--ink)}.chk input{width:auto}
+.res{white-space:pre-wrap;font:12px/1.4 ui-monospace,monospace;background:var(--tile);border-radius:12px;padding:10px;margin-top:10px}
+.chk{display:flex;gap:8px;align-items:center;margin:12px 0 0;font-size:14px;color:var(--ink);text-transform:none;letter-spacing:0;font-weight:500}.chk input{width:auto}
 </style>
  </head>
  <body>
-  <h1>Option Strategist</h1>
-  <p class="sub">Kotak Neo option chain, strategies by market view (including Nifty futures with hedge), live ticks and order ticket.</p>
+  <div class="hero">
+   <div class="brand">
+    Kotak Neo <b>Options</b>
+   </div>
+   <span class="pill" id="stp"><i></i><span id="stt">Offline</span></span>
+  </div>
+  <p class="sub">Option chain, strategies by market view, Nifty futures with hedge, live ticks and order ticket.</p>
   <div class="card" id="login">
    <h2>Connect</h2>
    <label>Consumer key (Neo app → More → Trade API)</label><input id="ck" type="password" autocomplete="off">
@@ -60,31 +88,16 @@ td.c i{right:0;background:var(--ce)}td.p i{left:0;background:var(--pe)}
    <small>Consumer key, UCC and mobile are kept on this device. TOTP and MPIN are never stored.</small>
   </div>
   <div class="card hide" id="ctl">
-   <div class="row">
-    <div>
-     <label>Index</label><select id="sym"><option>NIFTY</option><option>BANKNIFTY</option><option>FINNIFTY</option><option>MIDCPNIFTY</option><option>SENSEX</option></select>
-    </div>
-    <div>
-     <label>Expiry</label><select id="exp"></select>
-    </div>
+   <label style="margin-top:0">Index</label>
+   <div class="chips" id="symC"></div>
+   <select id="sym" class="sr"><option>NIFTY</option><option>BANKNIFTY</option><option>FINNIFTY</option><option>MIDCPNIFTY</option><option>SENSEX</option></select> <label>Expiry</label><select id="exp"></select> <label>Updates</label>
+   <div class="chips" id="modeC"></div>
+   <select id="mode" class="sr"><option value="manual">Manual</option><option value="auto">Auto 5 s</option><option value="live">Live ticks</option></select>
+   <div class="btns">
+    <button class="alt" id="load">⟳ Refresh</button>
+    <button class="alt" id="fundsb">₹ Funds</button>
    </div>
-   <div class="row">
-    <div>
-     <label>Updates</label><select id="mode"><option value="manual">Manual</option><option value="auto">Auto every 5 s</option><option value="live">Live ticks</option></select>
-    </div>
-    <div>
-     <label>&nbsp;</label>
-     <button class="alt" id="load" style="margin-top:0">Refresh chain</button>
-    </div>
-   </div>
-   <div class="row">
-    <button class="alt" id="fundsb">Check funds</button>
-   </div>
-   <div class="row">
-    <button class="alt" id="rawb">Show raw quote (ATM call)</button>
-   </div>
-   <div id="raw" class="res hide"></div>
-   <p id="funds" class="sub" style="margin:8px 0 0"></p>
+   <p id="funds" class="sub" style="margin:10px 0 0"></p>
    <p id="wsst" class="sub" style="margin:4px 0 0"></p>
    <p id="err2" class="warn"></p>
   </div>
@@ -142,7 +155,7 @@ const Kotak={
   check(o){return http('POST',S.base+'/quick/user/check-margin'+sid(),this.TH(),{jData:JSON.stringify(o)})}
 };
 const num=v=>{const n=parseFloat(v);return isFinite(n)?n:0};
-const qLtp=q=>num(q.ltp??q.last_traded_price),qOi=q=>num(q.open_int??q.oi??q.openInterest),qTok=q=>String(q.exchange_token??q.instrument_token??'');
+const qLtp=q=>num(q.ltp??q.last_traded_price),qOi=q=>num(q.open_int??q.oi??q.openInterest),qTok=q=>String(q.exchange_token??q.instrument_token??''),qBid=q=>num(q.depth&&q.depth.buy&&q.depth.buy[0]&&q.depth.buy[0].price),qAsk=q=>num(q.depth&&q.depth.sell&&q.depth.sell[0]&&q.depth.sell[0].price);
  
 function cols(csv){const L=csv.split(/\r?\n/),h=L[0].split(',').map(s=>s.trim().replace(/;$/,''));
   const ix=n=>h.findIndex(x=>x.toLowerCase()===n.toLowerCase());
@@ -229,20 +242,21 @@ function show(rows,spot,note,parityOn,auto,fut){
 function build(){
   const A=analyse(ST.rows,ST.spot),bias=A.pcr>=1.2?'Bullish':A.pcr<=0.8?'Bearish':'Neutral';
   $('out').innerHTML=`<div class="card" id="snap"></div>
-  <div class="card"><h2>Strategy</h2><div class="row"><div><label>Market view</label><select id="view">${Object.keys(LIB).map(v=>`<option ${v===bias?'selected':''}>${v}</option>`).join('')}</select></div>
-  <div><label>Strategy</label><select id="strat"></select></div><div style="flex:.45"><label>Lots</label><input id="lots" type="number" min="1" step="1" value="1" inputmode="numeric"></div></div><div class="row hide" id="frow"><div><label>Hedge strike</label><select id="hedge"><option value="2">2 steps OTM</option><option value="4">4 steps OTM</option><option value="atm">ATM</option><option value="wall">OI wall</option></select></div></div><div id="sc"></div><div id="mg"></div></div>
+  <div class="card"><h2>Strategy</h2><label style="margin-top:0">Market view</label><div class="chips" id="viewC"></div><select id="view" class="sr">${Object.keys(LIB).map(v=>`<option ${v===bias?'selected':''}>${v}</option>`).join('')}</select>
+  <div class="row"><div><label>Strategy</label><select id="strat"></select></div><div style="flex:.45"><label>Lots</label><input id="lots" type="number" min="1" step="1" value="1" inputmode="numeric"></div></div><div class="row hide" id="frow"><div><label>Hedge strike</label><select id="hedge"><option value="2">2 steps OTM</option><option value="4">4 steps OTM</option><option value="atm">ATM</option><option value="wall">OI wall</option></select></div></div><div id="sc"></div><div id="mg"></div></div>
   <div class="card" id="tkc"><h2>Order ticket</h2>
-  <div class="row"><div><label>Order type</label><select id="otype"><option value="L">Limit</option><option value="MKT">Market</option></select></div>
-  <div><label>Product</label><select id="prod"><option>NRML</option><option>MIS</option></select></div><div><label>Validity</label><select id="val"><option>DAY</option><option>IOC</option></select></div></div>
+  <label style="margin-top:0">Order type</label><div class="chips" id="otypeC"></div><select id="otype" class="sr"><option value="L">Limit</option><option value="MKT">Market</option></select>
+  <div class="row"><div><label>Product</label><select id="prod"><option>NRML</option><option>MIS</option></select></div><div><label>Validity</label><select id="val"><option>DAY</option><option>IOC</option></select></div></div>
+  <label>Limit price from</label><select id="pbasis"><option value="fill">Best bid/ask: buy at ask, sell at bid</option><option value="ltp">Last traded price</option><option value="passive">Passive: buy at bid, sell at ask</option></select>
   <div id="tkl"></div><p class="sub" id="tkt" style="margin:8px 0 0"></p>
   <label class="chk"><input type="checkbox" id="dry" checked> Dry run (show orders, do not send)</label>
-  <button class="alt" id="mcheck">Check funds &amp; margin</button><p id="mgr" class="sub" style="margin:6px 0 0"></p><button id="place">Preview orders</button><div id="res" class="res hide"></div>
+  <button class="alt" id="mcheck">₹ Check funds &amp; margin</button><p id="mgr" class="sub" style="margin:6px 0 0"></p><button id="place">▶ Preview orders</button><div id="res" class="res hide"></div>
   <p class="sub" style="margin-top:8px">Kotak says market orders are not allowed for retail API trading and are converted to limit orders, so prefer Limit. API orders may be accepted only from your registered static IP. Buy legs are sent first and sending stops at the first failure.</p></div>
   <div class="card" id="pp"></div>
   <div class="card scroll"><h2>Chain <small>(call OI · call LTP · strike · put LTP · put OI)</small></h2><table id="chain"></table></div>`;
   $('view').onchange=fillStrat;$('strat').onchange=onStrat;$('lots').oninput=onStrat;
-  $('otype').onchange=()=>{buildTicket()};$('dry').onchange=()=>{$('place').textContent=$('dry').checked?'Preview orders':'Place orders (LIVE)';$('place').className=$('dry').checked?'':'live'};
-  $('place').onclick=place;$('mcheck').onclick=mCheck;$('hedge').onchange=onStrat;drawPaper();fillStrat(true)
+  $('otype').onchange=()=>{buildTicket()};$('dry').onchange=()=>{$('place').textContent=$('dry').checked?'▶ Preview orders':'⚡ Place orders (LIVE)';$('place').className=$('dry').checked?'':'live'};
+  $('place').onclick=place;$('mcheck').onclick=mCheck;$('hedge').onchange=onStrat;$('pbasis').onchange=buildTicket;drawPaper();fillStrat(true);chips('view');chips('otype')
 }
 function paint(){
   if(ST.parity){const p=parity(ST.rows);if(p)ST.spot=p}
@@ -261,7 +275,7 @@ function paint(){
       else ST.pend=null}}
 }
 function fillStrat(init){$('strat').innerHTML=Object.keys(LIB[$('view').value]).map(n=>`<option>${n}</option>`).join('');$('frow').classList[$('view').value==='Futures + hedge'?'remove':'add']('hide');if(!init)onStrat()}
-function onStrat(a){if(a!==true)ST.flip='';setSpec();drawStrat();buildTicket()}
+function onStrat(a){if(a!==true)ST.flip='';setSpec();drawStrat();buildTicket();if($('mode').value==='live')depthPoll()}
 function setSpec(){
   const A=analyse(ST.rows,ST.spot),v=$('view').value,sym=$('sym').value,
     c={atm:A.atm,pw:A.pw,cw:A.cw,s:A.s,sn:k=>A.ks.reduce((b,x)=>Math.abs(x-k)<Math.abs(b-k)?x:b),hedge:$('hedge')?$('hedge').value:'2'};
@@ -303,8 +317,8 @@ function drawStrat(){
   if(!ST.spec||!ST.spec.length){ST.legs=[];ST.mg=null;
     $('sc').innerHTML=(ST.flip?`<p class="warn">${ST.flip}</p>`:'')+dh+chg+`<p class="sub" style="margin-top:8px">${ST.err||'No trade: the option-data signals do not agree strongly enough. Staying out is a valid result.'}</p>`;$('mg').innerHTML='';return}
   const legs=ST.legs=ST.spec.map(([d,k,t])=>{
-    if(t==='FUT'){const f=ST.fut||{};return{d,k:f.ltp||0,t,p:f.ltp||0,ts:f.ts,tok:f.tok}}
-    const o=(rows.find(r=>r.k===k)||{})[t==='CE'?'ce':'pe']||{};return{d,k,t,p:o.ltp||0,ts:o.ts,tok:o.tok}});
+    if(t==='FUT'){const f=ST.fut||{};return{d,k:f.ltp||0,t,p:f.ltp||0,bid:f.bid||0,ask:f.ask||0,ts:f.ts,tok:f.tok}}
+    const o=(rows.find(r=>r.k===k)||{})[t==='CE'?'ce':'pe']||{};return{d,k,t,p:o.ltp||0,bid:o.bid||0,ask:o.ask||0,ts:o.ts,tok:o.tok}});
   const net=legs.filter(x=>x.t!=='FUT').reduce((t,x)=>t+(x.d==='SELL'?x.p:-x.p),0),P=profile(legs),em=A.straddle;
   const fit=fv?'':v==='Volatile'?`ATM straddle implies a move of about ±${em.toFixed(0)} (${(em/spot*100).toFixed(1)}%); this pays off only if the move is larger.`:
     v===bias?`Matches the current OI lean (PCR ${A.pcr.toFixed(2)}).`:`Goes against the current OI lean (${bias}, PCR ${A.pcr.toFixed(2)}). Treat with caution.`;
@@ -321,10 +335,12 @@ function drawStrat(){
   ST.mg={legs,P,q};ST.legKey=name+'|'+lots+'|'+JSON.stringify(ST.spec)+'|'+($('hedge')?$('hedge').value:'');drawMargin();
 }
 function ordered(){return (ST.legs||[]).map((l,i)=>({l,i})).sort((a,b)=>(a.l.d==='BUY'?0:1)-(b.l.d==='BUY'?0:1))}
+function bp(l){const b=$('pbasis')?$('pbasis').value:'ltp';if(b==='ltp')return l.p;
+  const bid=l.bid>0?l.bid:l.p,ask=l.ask>0?l.ask:l.p;return b==='fill'?(l.d==='BUY'?ask:bid):(l.d==='BUY'?bid:ask)}
 function buildTicket(){
   const{q}=qtyNow(),mkt=$('otype').value==='MKT';
   if(!ST.legs||!ST.legs.length){$('tkl').innerHTML='';$('tkt').textContent='No legs to trade.';return}
-  $('tkl').innerHTML=ordered().map(({l,i})=>`<div class="leg"><span class="${l.d==='BUY'?'buy':'sell'}">${lbl(l)} <small>×${q}</small></span><input id="lp${i}" inputmode="decimal" value="${mkt?'':tk2(l,l.p)}" ${mkt?'disabled placeholder="MKT"':''}></div>`).join('');
+  $('tkl').innerHTML=ordered().map(({l,i})=>`<div class="leg"><span class="${l.d==='BUY'?'buy':'sell'}">${lbl(l)} <small>×${q}</small></span><input id="lp${i}" inputmode="decimal" value="${mkt?'':tk2(l,bp(l))}" ${mkt?'disabled placeholder="MKT"':''}></div>`).join('');
   [...$('tkl').querySelectorAll('input')].forEach(e=>e.oninput=tkTot);tkTot()
 }
 function tkTot(){
@@ -362,34 +378,36 @@ async function mCheck(){
 /* ---------- paper trades (dry run) ---------- */
 let PP=[];try{PP=JSON.parse(localStorage.getItem('os_pp')||'[]')}catch{}
 const savePP=()=>{try{localStorage.setItem('os_pp',JSON.stringify(PP))}catch{}};
-function ltpOf(b,l){if(!ST)return null;const[k0,k1]=ST.key.split('|');if(k0!==b.sym||k1!==b.exp)return null;
-  if(l.t==='FUT')return ST.fut?ST.fut.ltp:null;
-  const r=ST.rows.find(x=>x.k===l.k);return r?(l.t==='CE'?r.ce.ltp:r.pe.ltp):null}
+function quoteOf(b,l){if(!ST)return null;const[k0,k1]=ST.key.split('|');if(k0!==b.sym||k1!==b.exp)return null;
+  if(l.t==='FUT')return ST.fut||null;
+  const r=ST.rows.find(x=>x.k===l.k);return r?(l.t==='CE'?r.ce:r.pe):null}
+function markPx(b,l){const o=quoteOf(b,l);if(!o)return null;const side=l.d==='BUY'?o.bid:o.ask;return side>0?side:o.ltp}
+function tryFill(b,l){
+  const o=quoteOf(b,l);if(!o)return false;
+  const ref=l.d==='BUY'?(o.ask>0?o.ask:o.ltp):(o.bid>0?o.bid:o.ltp);if(!(ref>0))return false;
+  if(l.limit==null||(l.d==='BUY'?ref<=l.limit:ref>=l.limit)){l.status='FILLED';l.entry=ref;return true}
+  return false
+}
 function paperTick(){
   let ch=false;
   for(const b of PP){if(b.closed)continue;
-    for(const l of b.legs){const p=ltpOf(b,l);if(!(p>0))continue;
-      if(l.status==='PENDING'&&l.limit!=null&&(l.d==='BUY'?p<=l.limit:p>=l.limit)){l.status='FILLED';l.entry=l.limit;ch=true}}
+    for(const l of b.legs)if(l.status==='PENDING'&&tryFill(b,l))ch=true;
     if(b.legs.filter(l=>l.d==='BUY').every(l=>l.status==='FILLED'||l.status==='CLOSED'))
-      for(const l of b.legs)if(l.status==='WAIT'){const p=ltpOf(b,l);if(!(p>0))continue;ch=true;
-        if(l.limit==null||p>=l.limit){l.status='FILLED';l.entry=p}else l.status='PENDING'}}
+      for(const l of b.legs)if(l.status==='WAIT'){l.status='PENDING';ch=true;tryFill(b,l)}}
   if(ch)savePP()
 }
 function newPaper(ord,q,mkt){
   const b={id:Date.now(),sym:$('sym').value,exp:$('exp').value,q,legs:[],closed:false,t:new Date().toLocaleTimeString('en-IN')};
   const hasBuy=ord.some(x=>x.l.d==='BUY');
-  for(const x of ord){const l={d:x.l.d,k:x.l.k,t:x.l.t,ts:x.o.ts,limit:mkt?null:+x.o.pr,status:'PENDING'};
-    if(x.l.d==='SELL'&&hasBuy)l.status='WAIT';else{const p=ltpOf(b,l)||x.l.p;
-      if(l.limit==null||(l.d==='BUY'?p<=l.limit:p>=l.limit)){l.status='FILLED';l.entry=p}}
-    b.legs.push(l)}
+  for(const x of ord)b.legs.push({d:x.l.d,k:x.l.k,t:x.l.t,ts:x.o.ts,limit:mkt?null:+x.o.pr,status:(x.l.d==='SELL'&&hasBuy)?'WAIT':'PENDING'});
   PP.unshift(b);paperTick();savePP();drawPaper();return b
 }
 function sqoff(id){
   const b=PP.find(x=>x.id===id);if(!b)return;
   const need=b.legs.filter(l=>l.status==='FILLED');
-  if(need.some(l=>!(ltpOf(b,l)>0))){alert('Open '+b.sym+' with the same expiry so a live price is available for square-off.');return}
+  if(need.some(l=>!(markPx(b,l)>0))){alert('Open '+b.sym+' with the same expiry so a live price is available for square-off.');return}
   b.legs.forEach(l=>{if(l.status==='PENDING'||l.status==='WAIT')l.status='CANCELLED'});
-  need.sort((a,c)=>(a.d==='SELL'?0:1)-(c.d==='SELL'?0:1)).forEach(l=>{l.exit=ltpOf(b,l);l.status='CLOSED'});
+  need.sort((a,c)=>(a.d==='SELL'?0:1)-(c.d==='SELL'?0:1)).forEach(l=>{l.exit=markPx(b,l);l.status='CLOSED'});
   b.closed=true;savePP();drawPaper()
 }
 function clearPaper(){if(confirm('Delete all paper trades?')){PP=[];savePP();drawPaper()}}
@@ -398,15 +416,15 @@ function drawPaper(){
   if(!PP.length){el.innerHTML='<h2>Paper trades</h2><p class="sub">Place a dry run and the orders appear here with live profit and loss, and a square-off button.</p>';return}
   let open=0,real=0;
   const html=PP.map(b=>{let bp=0;
-    const rows=b.legs.map(l=>{const p=ltpOf(b,l);let pl=null,txt=l.status;
+    const rows=b.legs.map(l=>{const p=markPx(b,l);let pl=null,txt=l.status;
       if(l.status==='FILLED'&&p>0){pl=(l.d==='BUY'?p-l.entry:l.entry-p)*b.q;open+=pl;bp+=pl}
       if(l.status==='CLOSED'){pl=(l.d==='BUY'?l.exit-l.entry:l.entry-l.exit)*b.q;real+=pl;bp+=pl}
       const px=l.status==='FILLED'||l.status==='CLOSED'?'@ '+l.entry.toFixed(2)+(l.status==='CLOSED'?' → '+l.exit.toFixed(2):''):l.limit!=null?'limit '+l.limit.toFixed(2):'market';
       return `<div class="leg"><span class="${l.d==='BUY'?'buy':'sell'}">${lbl(l)} <small>${txt==='WAIT'?'WAITING for buy fill':txt} ${px}</small></span><span class="${pl>=0?'buy':'sell'}">${pl==null?'-':(pl>=0?'+':'-')+inr(Math.abs(pl))}</span></div>`}).join('');
     return `<div style="margin-top:10px"><b>${b.sym} ${b.closed?'(closed)':''}</b> <small>${b.t} · qty ${b.q}</small>${rows}
-      <div class="leg"><span>Trade P&amp;L</span><b class="${bp>=0?'buy':'sell'}">${(bp>=0?'+':'-')+inr(Math.abs(bp))}</b></div>${b.closed?'':`<button class="alt" onclick="sqoff(${b.id})">Square off at live price</button>`}</div>`}).join('');
+      <div class="leg"><span>Trade P&amp;L</span><b class="${bp>=0?'buy':'sell'}">${(bp>=0?'+':'-')+inr(Math.abs(bp))}</b></div>${b.closed?'':`<button class="warnb" onclick="sqoff(${b.id})">■ Square off</button>`}</div>`}).join('');
   el.innerHTML=`<h2>Paper trades (dry run)</h2><div class="kv"><div><span>Open P&amp;L (live)</span><b class="${open>=0?'buy':'sell'}">${(open>=0?'+':'-')+inr(Math.abs(open))}</b></div><div><span>Realized</span><b class="${real>=0?'buy':'sell'}">${(real>=0?'+':'-')+inr(Math.abs(real))}</b></div></div>`+html+
-  `<p class="sub" style="margin-top:8px">Simulation only: fills use live LTP with no slippage, charges or margin check. Buy limits fill when LTP is at or below your price, sell limits when at or above. Sell legs wait until every buy leg is filled. Square-off buys back short legs first, then sells long legs.</p><button class="alt" onclick="clearPaper()">Clear paper trades</button>`
+  `<p class="sub" style="margin-top:8px">Simulation only. Buys fill at the best ask and sells at the best bid (LTP if depth is missing), and a limit fills only when that price is at or better than your limit. P&amp;L is marked at the price you could close at: bid for longs, ask for shorts. Bid/ask refresh about every 5 seconds. No charges or margin check. Sell legs wait until every buy leg is filled. Square-off buys back short legs first, then sells long legs.</p><button class="alt" onclick="clearPaper()">✕ Clear paper trades</button>`
 }
  
 /* ---------- order placement ---------- */
@@ -480,9 +498,18 @@ function decode(buf){
     o+=n}
   if(hit)sched()
 }
-let TM=null;
-function setMode(){clearInterval(TM);wsStop();$('wsst').textContent='';const m=$('mode').value;
-  if(m==='auto')TM=setInterval(()=>load(true),5000);if(m==='live'&&ST){mapRows();wsStart()}}
+let TM=null,dpb=false;
+async function depthPoll(){
+  if(dpb||S.demo||!ST||!ST.legs||!ST.legs.length)return;dpb=true;
+  try{const seg=IDX[$('sym').value].seg,e=ENUM[seg],toks=[...new Set(ST.legs.map(l=>l.tok).filter(Boolean))];
+    if(!toks.length)return;const qs=await Kotak.quotes(toks.map(t=>seg+'|'+t));
+    qs.forEach(q=>{const x=W.map[e+'|'+qTok(q)];if(x){x.bid=qBid(q);x.ask=qAsk(q)}})}catch{}finally{dpb=false}
+}
+function setStatus(){const m=$('mode').value,p=$('stp'),t=$('stt');if(!p)return;
+  p.className='pill'+(m==='live'?' live':m==='auto'?' auto':'');t.textContent=m==='live'?'Live ticks':m==='auto'?'Auto 5 s':'Manual'}
+function setMode(){clearInterval(TM);wsStop();$('wsst').textContent='';const m=$('mode').value;setStatus();
+  if(m==='auto')TM=setInterval(()=>load(true),5000);
+  if(m==='live'&&ST){mapRows();wsStart();depthPoll();TM=setInterval(depthPoll,5000)}}
  
 /* ---------- demo + wiring ---------- */
 function demo(){
@@ -517,12 +544,11 @@ $('fundsb').onclick=async()=>{
     $('funds').textContent=f!=null?`Available (Net): ₹${n0(num(f))}${d.MarginUsed!=null?'   Margin used: ₹'+n0(num(d.MarginUsed)):''}`:'Funds response: '+JSON.stringify(r).slice(0,220)
   }catch(e){$('funds').textContent='Funds error: '+(e.message||e)}
 };
-$('rawb').onclick=async()=>{
-  const R=$('raw');R.classList.remove('hide');
-  try{if(S.demo||!ST){R.textContent='Log in and load a chain first.';return}
-    const r=ST.rows.find(x=>x.k===ST.A.atm),q=await Kotak.quotes([IDX[$('sym').value].seg+'|'+r.ce.tok]);
-    R.textContent=JSON.stringify(q[0]||q,null,1).slice(0,2000)}catch(e){R.textContent=String(e.message||e)}
-};
+function chips(id){
+  const sel=$(id),c=$(id+'C');if(!sel||!c)return;
+  c.innerHTML=[...(sel.options||[])].map(o=>`<button type="button" class="chip${o.value===sel.value?' on':''}" data-v="${o.value}">${o.text}</button>`).join('');
+  [...c.querySelectorAll('button')].forEach(b=>b.onclick=()=>{sel.value=b.dataset.v;if(sel.onchange)sel.onchange();chips(id)})
+}
 let busy=false;
 async function load(auto){
   if(busy)return;busy=true;
@@ -534,15 +560,16 @@ async function load(auto){
     const near=all.filter(r=>Math.abs(r.k-ctr)<=w);
     const fx=sym==='NIFTY'?parseFut(M[cfg.seg],sym).filter(f=>f.exp>=ex-86400).sort((a,b)=>a.exp-b.exp)[0]:null;
     const qs=await Kotak.quotes([...near.map(r=>cfg.seg+'|'+r.tok),...(fx?[cfg.seg+'|'+fx.tok]:[])]),byT={};qs.forEach(q=>byT[qTok(q)]=q);
-    const m={};near.forEach(r=>{const q=byT[r.tok]||{};(m[r.k]=m[r.k]||{k:r.k})[r.type==='CE'?'ce':'pe']={oi:qOi(q),ltp:qLtp(q),tok:r.tok,ts:r.ts}});
+    const m={};near.forEach(r=>{const q=byT[r.tok]||{};(m[r.k]=m[r.k]||{k:r.k})[r.type==='CE'?'ce':'pe']={oi:qOi(q),ltp:qLtp(q),bid:qBid(q),ask:qAsk(q),tok:r.tok,ts:r.ts}});
     let rows=Object.values(m).filter(r=>r.ce&&r.pe).sort((a,b)=>a.k-b.k),note='',par=false;
     if(!spot){const p=parity(rows);if(!p)throw new Error('Could not get spot or option prices (market closed?).');
       spot=p;par=true;rows=rows.filter(r=>Math.abs(r.k-spot)<=12*st);note='Index quote was unavailable, so spot comes from put-call parity (close to the futures price).'}
-    const fq=fx&&byT[fx.tok],fut=fq?{ltp:qLtp(fq),oi:qOi(fq),tok:fx.tok,ts:fx.ts}:null;
+    const fq=fx&&byT[fx.tok],fut=fq?{ltp:qLtp(fq),oi:qOi(fq),bid:qBid(fq),ask:qAsk(fq),tok:fx.tok,ts:fx.ts}:null;
     if(rows.length<5)throw new Error('Too few strikes parsed; check quote field names in qLtp/qOi.');
     show(rows,spot,note,par,!!auto,fut)
   }catch(e){fail(e)}finally{busy=false}
 }
+chips('sym');chips('mode');
 </script>
  </body>
 </html>
