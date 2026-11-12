@@ -150,6 +150,16 @@ const Kotak={
       out.push(...(Array.isArray(r)?r:(r.data||[])));
     }return out
   },
+  async hist(sym,interval,from,to){
+    const U=S.base+'/market-data/1.0/historical/details',qs=o=>Object.entries(o).map(([k,v])=>k+'='+encodeURIComponent(v)).join('&');
+    const hs=[this.H(),{Authorization:S.ck,Auth:S.tok,Sid:S.sid,'neo-fin-key':'neotradeapi'}];
+    const ps=[{neosymbol:sym,interval,from_date:from,to_date:to},{neosymbol:sym,interval,from,to},{symbol:sym,interval,from_date:from,to_date:to}];
+    let last='';
+    for(const hi of (S.hh!=null?[S.hh]:[0,1]))for(const pi of (S.hp!=null?[S.hp]:[0,1,2])){
+      try{const r=await http('GET',U+'?'+qs(ps[pi]),hs[hi]),c=r&&((r.data&&r.data.candles)||r.candles);
+        if(Array.isArray(c)){S.hh=hi;S.hp=pi;return c}last=JSON.stringify(r).slice(0,160)}catch(e){last=String(e.message||e).slice(0,160)}}
+    throw new Error('history: '+(last||'no candles'))
+  },
   limits(){return http('POST',S.base+'/quick/user/limits'+sid(),this.TH(),{jData:JSON.stringify({seg:'ALL',exch:'ALL',prod:'ALL'})})},
   order(o){return http('POST',S.base+'/quick/order/rule/ms/place'+sid(),this.TH(),{jData:JSON.stringify(o)})},
   check(o){return http('POST',S.base+'/quick/user/check-margin'+sid(),this.TH(),{jData:JSON.stringify(o)})}
@@ -243,7 +253,7 @@ function build(){
   const A=analyse(ST.rows,ST.spot),bias=A.pcr>=1.2?'Bullish':A.pcr<=0.8?'Bearish':'Neutral';
   $('out').innerHTML=`<div class="card" id="snap"></div>
   <div class="card"><h2>Strategy</h2><label style="margin-top:0">Market view</label><div class="chips" id="viewC"></div><select id="view" class="sr">${Object.keys(LIB).map(v=>`<option ${v===bias?'selected':''}>${v}</option>`).join('')}</select>
-  <div class="row"><div><label>Strategy</label><select id="strat"></select></div><div style="flex:.45"><label>Lots</label><input id="lots" type="number" min="1" step="1" value="1" inputmode="numeric"></div></div><div class="row hide" id="frow"><div><label>Hedge strike</label><select id="hedge"><option value="2">2 steps OTM</option><option value="4">4 steps OTM</option><option value="atm">ATM</option><option value="wall">OI wall</option></select></div></div><div id="sc"></div><div id="mg"></div></div>
+  <div class="row"><div><label>Strategy</label><select id="strat"></select></div><div style="flex:.45"><label>Lots</label><input id="lots" type="number" min="1" step="1" value="1" inputmode="numeric"></div></div><div class="row hide" id="frow"><div><label>Horizon</label><div class="chips" id="hzC"></div><select id="hz" class="sr"><option>Intraday</option><option>Swing</option></select></div><div><label>Hedge strike</label><select id="hedge"><option value="2">2 steps OTM</option><option value="4">4 steps OTM</option><option value="atm">ATM</option><option value="wall">OI wall</option></select></div></div><div id="sc"></div><div id="mg"></div></div>
   <div class="card" id="tkc"><h2>Order ticket</h2>
   <label style="margin-top:0">Order type</label><div class="chips" id="otypeC"></div><select id="otype" class="sr"><option value="L">Limit</option><option value="MKT">Market</option></select>
   <div class="row"><div><label>Product</label><select id="prod"><option>NRML</option><option>MIS</option></select></div><div><label>Validity</label><select id="val"><option>DAY</option><option>IOC</option></select></div></div>
@@ -256,7 +266,7 @@ function build(){
   <div class="card scroll"><h2>Chain <small>(call OI · call LTP · strike · put LTP · put OI)</small></h2><table id="chain"></table></div>`;
   $('view').onchange=fillStrat;$('strat').onchange=onStrat;$('lots').oninput=onStrat;
   $('otype').onchange=()=>{buildTicket()};$('dry').onchange=()=>{$('place').textContent=$('dry').checked?'▶ Preview orders':'⚡ Place orders (LIVE)';$('place').className=$('dry').checked?'':'live'};
-  $('place').onclick=place;$('mcheck').onclick=mCheck;$('hedge').onchange=onStrat;$('pbasis').onchange=buildTicket;drawPaper();fillStrat(true);chips('view');chips('otype')
+  $('place').onclick=place;$('mcheck').onclick=mCheck;$('hedge').onchange=onStrat;$('pbasis').onchange=buildTicket;drawPaper();fillStrat(true);$('hz').value=HZ;$('hz').onchange=()=>{HZ=$('hz').value;try{localStorage.setItem('os_hz',HZ)}catch{}onStrat();chips('hz')};chips('view');chips('otype');chips('hz')
 }
 function paint(){
   if(ST.parity){const p=parity(ST.rows);if(p)ST.spot=p}
@@ -271,7 +281,7 @@ function paint(){
     if($('view').value==='Futures + hedge'&&/^Auto/.test($('strat').value)&&!ST.err){
       const c=direction().call;
       if(c!==ST.specDir){if(!ST.pend||ST.pend.call!==c)ST.pend={call:c,t:Date.now()};
-        else if(Date.now()-ST.pend.t>=30000){ST.pend=null;ST.flip='Signal changed to '+c+' at '+new Date().toLocaleTimeString('en-IN')+'; legs and ticket were updated.';onStrat(true)}}
+        else if(Date.now()-ST.pend.t>=(HZ==='Swing'?1800000:300000)){ST.pend=null;ST.flip='Signal changed to '+c+' at '+new Date().toLocaleTimeString('en-IN')+'; legs and ticket were updated.';onStrat(true)}}
       else ST.pend=null}}
 }
 function fillStrat(init){$('strat').innerHTML=Object.keys(LIB[$('view').value]).map(n=>`<option>${n}</option>`).join('');$('frow').classList[$('view').value==='Futures + hedge'?'remove':'add']('hide');if(!init)onStrat()}
@@ -288,6 +298,89 @@ function setSpec(){
   }catch(e){ST.spec=null;ST.err=e.message}
 }
 function qtyNow(){const l=Math.max(1,Math.floor(+$('lots').value||1));return{l,q:l*(LOT[$('sym').value]||1)}}
+let HZ='Intraday';try{HZ=localStorage.getItem('os_hz')||'Intraday'}catch{}
+const TR={ok:false,err:'loading candles…'},FII={ok:false,err:'loading…'};
+const ymd=d=>d.toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'});
+function ema(c,n){const k=2/(n+1);let e=c[0];const o=[e];for(let i=1;i<c.length;i++){e=c[i]*k+e*(1-k);o.push(e)}return o}
+function rsi(c,n=14){if(c.length<n+1)return null;let g=0,l=0;for(let i=1;i<=n;i++){const d=c[i]-c[i-1];d>=0?g+=d:l-=d}g/=n;l/=n;
+  for(let i=n+1;i<c.length;i++){const d=c[i]-c[i-1];g=(g*(n-1)+Math.max(d,0))/n;l=(l*(n-1)+Math.max(-d,0))/n}return l===0?100:100-100/(1+g/l)}
+function candle(r){const t=r[0],ms=typeof t==='number'?(t<1e12?t*1000:t):null;
+  const d=typeof t==='string'&&/^\d{4}-\d{2}-\d{2}/.test(t)?t.slice(0,10):ymd(new Date(ms!=null?ms:Date.parse(t)));
+  return{t:String(t),d,o:+r[1],h:+r[2],l:+r[3],c:+r[4]}}
+function grp(bars,keyf){const m=new Map();bars.forEach(b=>{const k=keyf(b);if(!m.has(k))m.set(k,[]);m.get(k).push(b)});
+  return[...m.values()].map(a=>({o:a[0].o,h:Math.max(...a.map(x=>x.h)),l:Math.min(...a.map(x=>x.l)),c:a[a.length-1].c}))}
+function hourly(bars){const days=new Map();bars.forEach(b=>{if(!days.has(b.d))days.set(b.d,[]);days.get(b.d).push(b)});
+  const out=[];days.forEach(a=>{for(let i=0;i<a.length;i+=2){const p=a.slice(i,i+2);out.push({o:p[0].o,h:Math.max(...p.map(x=>x.h)),l:Math.min(...p.map(x=>x.l)),c:p[p.length-1].c})}});return out}
+const wk=b=>{const d=new Date(b.d+'T00:00:00Z'),w=(d.getUTCDay()+6)%7;d.setUTCDate(d.getUTCDate()-w);return d.toISOString().slice(0,10)};
+function tf(bars,kind){
+  const c=bars.map(b=>b.c);if(c.length<25)return null;
+  const e20=ema(c,20).at(-1),e50=c.length>=50?ema(c,50).at(-1):null,r=rsi(c),last=c.at(-1);if(r==null)return null;
+  let v=0;
+  if(kind==='H')v=last>e20&&r>50&&r<=70?1:last<e20&&r<50&&r>=30?-1:0;
+  else v=last>e20&&r>50&&(e50==null||e20>=e50)?1:last<e20&&r<50&&(e50==null||e20<=e50)?-1:0;
+  return{v,rsi:r,e20,e50,last,ob:r>70,os:r<30,n:c.length}
+}
+let trBusy=false;
+async function loadTrend(){
+  if(S.demo||trBusy||!S.base)return;trBusy=true;
+  try{
+    const sym=$('sym').value,spot=S.spotSym||IDX[sym].spot[0],key='os_c30_'+sym;
+    let bars=[];try{bars=JSON.parse(localStorage.getItem(key)||'[]')}catch{}
+    const DAY=864e5,end=new Date(),from=bars.length?new Date(Date.parse(bars[bars.length-1].d)-3*DAY):new Date(+end-300*DAY),got=[];
+    for(let a=new Date(from);a<=end;){const b=new Date(Math.min(+a+29*DAY,+end));
+      (await Kotak.hist(spot,'30min',ymd(a),ymd(b))).forEach(r=>{const x=candle(r);if(x.c>0)got.push(x)});a=new Date(+b+DAY)}
+    const m=new Map();bars.concat(got).forEach(b=>m.set(b.t,b));
+    bars=[...m.values()].sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:Number(a.t)-Number(b.t)||(a.t<b.t?-1:1)).slice(-4600);
+    try{localStorage.setItem(key,JSON.stringify(bars))}catch{}
+    if(bars.length<120)throw new Error('only '+bars.length+' candles returned');
+    TR.h=tf(hourly(bars.slice(-300)),'H');TR.d=tf(grp(bars,b=>b.d),'D');TR.w=tf(grp(bars,wk),'D');
+    TR.ok=!!(TR.d&&TR.w);TR.err=TR.ok?'':'not enough candles for RSI/EMA';TR.n=bars.length
+  }catch(e){TR.ok=false;TR.err=String(e.message||e)}finally{trBusy=false}
+  if(ST&&$('sc')&&ST.spec!==undefined)drawStrat()
+}
+function parseFII(t){
+  const L=String(t).split(/\r?\n/).map(x=>x.split(',').map(s=>s.trim())),hi=L.findIndex(r=>/client type/i.test(r[0]));if(hi<0)return null;
+  const H=L[hi].map(s=>s.toLowerCase()),row=L.slice(hi+1).find(r=>/^fii/i.test(r[0]));if(!row)return null;
+  const g=n=>{const i=H.findIndex(h=>h.includes(n));return i<0?null:num(String(row[i]).replace(/,/g,''))};
+  const fl=g('future index long'),fs=g('future index short');if(fl==null||fs==null||fl+fs===0)return null;
+  return{fl,fs,ratio:fl/(fl+fs)}
+}
+let fiBusy=false;
+async function loadFII(){
+  if(S.demo||fiBusy)return;fiBusy=true;
+  try{const got=[],wd=d=>d.toLocaleDateString('en-US',{weekday:'short',timeZone:'Asia/Kolkata'});let d=new Date();
+    for(let i=0;i<12&&got.length<2;i++){
+      if(!/Sat|Sun/.test(wd(d))){const s=d.toLocaleDateString('en-GB',{timeZone:'Asia/Kolkata'}).replace(/\//g,'');
+        try{const t=await http('GET','https://nsearchives.nseindia.com/content/nsccl/fao_participant_oi_'+s+'.csv',{'User-Agent':'Mozilla/5.0','Accept':'text/csv,*/*'});
+          const v=typeof t==='string'?parseFII(t):null;if(v){v.date=s;got.push(v)}}catch{}}
+      d=new Date(+d-864e5)}
+    if(!got.length)throw new Error('NSE participant-wise OI file not reachable');
+    FII.ok=true;FII.cur=got[0];FII.prev=got[1]||null;FII.err=''
+  }catch(e){FII.ok=false;FII.err=String(e.message||e)}finally{fiBusy=false}
+  if(ST&&$('sc')&&ST.spec!==undefined)drawStrat()
+}
+function finalDir(D){
+  const T=TR.ok?TR:null,why=[];D.hz=HZ;D.trend=[];
+  if(T){[['Weekly',T.w],['Daily',T.d],['Hourly',T.h]].forEach(([n,x])=>{if(x)D.trend.push({n,v:x.v,t:`RSI ${x.rsi.toFixed(0)}, price ${x.last>x.e20?'above':'below'} EMA20${x.e50!=null?', EMA20 '+(x.e20>=x.e50?'above':'below')+' EMA50':''}`})})}
+  else D.trend.push({n:'Trend',v:null,t:TR.err||'loading'});
+  let call='No trade';
+  if(!T){call=D.opt;why.push('Candle data unavailable, so option signals alone decide.')}
+  else{const w=T.w.v,d=T.d.v,h=T.h?T.h.v:0;
+    if(HZ==='Intraday'){
+      if(D.opt==='Bullish'){if(h>=0&&d>=0)call='Bullish';else why.push('Option signals are bullish but the '+(h<0?'hourly':'daily')+' trend is down.')}
+      else if(D.opt==='Bearish'){if(h<=0&&d<=0)call='Bearish';else why.push('Option signals are bearish but the '+(h>0?'hourly':'daily')+' trend is up.')}
+      else why.push('Option signals do not agree.')}
+    else{
+      if(w>0&&d>0){if(D.opt==='Bearish')why.push('Weekly and daily trends are up but option signals are bearish.');else if(T.h&&T.h.ob)why.push('Hourly RSI is overbought; waiting for a pullback.');else call='Bullish'}
+      else if(w<0&&d<0){if(D.opt==='Bullish')why.push('Weekly and daily trends are down but option signals are bullish.');else if(T.h&&T.h.os)why.push('Hourly RSI is oversold; waiting for a bounce.');else call='Bearish'}
+      else why.push('Weekly and daily trends do not agree.')}}
+  if(FII.ok&&FII.cur){const r=FII.cur.ratio,fv=r>=0.55?1:r<=0.45?-1:0,pr=FII.prev?FII.prev.ratio:null;
+    D.fii={v:fv,t:`index futures long ${(r*100).toFixed(0)}% (net ${FII.cur.fl-FII.cur.fs>=0?'+':''}${n0(FII.cur.fl-FII.cur.fs)}${pr!=null?', '+(r>=pr?'up':'down')+' from '+(pr*100).toFixed(0)+'% the day before':''}), mostly hedging, used only in Swing`};
+    if(HZ==='Swing'&&call==='Bullish'&&fv<0){call='No trade';why.push('FII index-futures positioning is short-heavy.')}
+    if(HZ==='Swing'&&call==='Bearish'&&fv>0){call='No trade';why.push('FII index-futures positioning is long-heavy.')}}
+  else D.fii={v:null,t:FII.err||'loading'};
+  D.call=call;D.why=why;return D
+}
 function hk(c,side){const h=c.hedge;if(h==='wall')return side==='put'?c.pw:c.cw;if(h==='atm')return c.atm;const n=+h||2;return c.sn(side==='put'?c.atm-n*c.s:c.atm+n*c.s)}
 function direction(){
   const A=ST.A,spot=ST.spot,sig=[],arr=SNAP[ST.key]||[],now=Date.now();
@@ -303,17 +396,20 @@ function direction(){
     sig.push({n:'OI buildup',v:net>=1?1:net<=-1?-1:0,t:`puts at/below ATM ${dp>=0?'+':''}${n0(dp)}, calls at/above ATM ${dc>=0?'+':''}${n0(dc)} over ${Math.round((now-bs.t)/60000)} min`})}
   else sig.push({n:'OI buildup',v:null,t:'collecting OI history (needs 5 minutes of data)'});
   const av=sig.filter(x=>x.v!==null),bull=av.filter(x=>x.v>0).length,bear=av.filter(x=>x.v<0).length;
-  return{sig,bull,bear,n:av.length,call:bull>=3&&bear===0?'Bullish':bear>=3&&bull===0?'Bearish':'No trade'}
+  return finalDir({sig,bull,bear,n:av.length,opt:bull>=3&&bear===0?'Bullish':bear>=3&&bull===0?'Bearish':'No trade'})
 }
 function dirHtml(d){
-  const cls=d.call==='Bullish'?'buy':d.call==='Bearish'?'sell':'';
-  return `<div style="margin-top:8px">${d.sig.map(x=>`<div class="leg"><span>${x.n} <small>${x.t}</small></span><b class="${x.v>0?'buy':x.v<0?'sell':''}">${x.v==null?'waiting':x.v>0?'Bullish':x.v<0?'Bearish':'Neutral'}</b></div>`).join('')}</div>
-  <p style="margin:8px 0 0">Signal: <b class="${cls}">${d.call}</b> <small>(a trade needs at least 3 signals agreeing and none against)</small></p>
-  <p class="sub" style="margin:4px 0 0">These are heuristics from open interest. They do not predict the market reliably, so the screen stays out when they disagree.</p>`
+  const cls=d.call==='Bullish'?'buy':d.call==='Bearish'?'sell':'',row=(n,v,t)=>`<div class="leg"><span>${n} <small>${t}</small></span><b class="${v>0?'buy':v<0?'sell':''}">${v==null?'waiting':v>0?'Bullish':v<0?'Bearish':'Neutral'}</b></div>`;
+  return `<div style="margin-top:8px"><small>OPTION DATA (${d.opt})</small>${d.sig.map(x=>row(x.n,x.v,x.t)).join('')}
+  <small>TREND (candles)</small>${d.trend.map(x=>row(x.n,x.v,x.t)).join('')}
+  <small>FII POSITIONING</small>${d.fii?row('FII futures',d.fii.v,d.fii.t):''}</div>
+  <p style="margin:8px 0 0">Signal (${d.hz}): <b class="${cls}">${d.call}</b></p>
+  ${d.why.length?`<p class="sub" style="margin:4px 0 0">${d.why.join(' ')}</p>`:''}
+  <p class="sub" style="margin:4px 0 0">${d.hz==='Intraday'?'Intraday: option signals must agree with the hourly and daily trend.':'Swing: weekly and daily trends must agree, and option signals must not oppose them.'} These are heuristics and do not predict the market reliably; the screen stays out when they disagree.</p>`
 }
 function drawStrat(){
   const{rows,spot,A,bias}=ST,v=$('view').value,name=$('strat').value,{l:lots,q}=qtyNow(),fv=v==='Futures + hedge';
-  const D=fv&&!ST.err?direction():null,dh=D?dirHtml(D):'',chg=D&&/^Auto/.test(name)&&ST.specDir!==D.call?`<p class="warn">Signal is now ${D.call}. Legs switch automatically if it holds for 30 seconds.</p>`:'';
+  const D=fv&&!ST.err?direction():null,dh=D?dirHtml(D):'',chg=D&&/^Auto/.test(name)&&ST.specDir!==D.call?`<p class="warn">Signal is now ${D.call}. Legs switch automatically if it holds for ${HZ==='Swing'?'30':'5'} minutes.</p>`:'';
   if(!ST.spec||!ST.spec.length){ST.legs=[];ST.mg=null;
     $('sc').innerHTML=(ST.flip?`<p class="warn">${ST.flip}</p>`:'')+dh+chg+`<p class="sub" style="margin-top:8px">${ST.err||'No trade: the option-data signals do not agree strongly enough. Staying out is a valid result.'}</p>`;$('mg').innerHTML='';return}
   const legs=ST.legs=ST.spec.map(([d,k,t])=>{
@@ -520,7 +616,7 @@ function demo(){
   return{spot,rows,fut:{ltp:spot+22,ts:'NIFTY FUT'}}
 }
 const fail=e=>{$('err').textContent=$('err2').textContent=String(e.message||e)};
-$('demo').onclick=()=>{S.demo=true;$('login').classList.add('hide');const d=demo();show(d.rows,d.spot,'Demo data.',false,false,d.fut)};
+$('demo').onclick=()=>{S.demo=true;Object.assign(TR,{ok:true,err:'',h:{v:1,rsi:58,e20:24480,e50:null,last:24510,ob:false,os:false},d:{v:1,rsi:61,e20:24300,e50:24100,last:24510,ob:false,os:false},w:{v:1,rsi:57,e20:24000,e50:null,last:24510,ob:false,os:false}});Object.assign(FII,{ok:true,err:'',cur:{fl:90000,fs:100000,ratio:0.47},prev:{fl:92000,fs:98000,ratio:0.48}});$('login').classList.add('hide');const d=demo();show(d.rows,d.spot,'Demo data.',false,false,d.fut)};
 $('go').onclick=async()=>{
   try{$('err').textContent='';S.ck=$('ck').value.trim();S.ucc=$('ucc').value.trim();S.mob=$('mob').value.trim();
     ['ck','ucc','mob'].forEach(i=>localStorage.setItem('os_'+i,$(i).value.trim()));
@@ -533,10 +629,11 @@ async function switchIdx(){
     if(!M[seg])M[seg]=await Kotak.master(seg);
     const now=Date.now()/1000-86400,ex=[...new Set(parseMaster(M[seg],sym).map(r=>r.exp))].filter(e=>e>=now).sort((a,b)=>a-b).slice(0,4);
     if(!ex.length)throw new Error('No '+sym+' options found in '+seg+' master. Names seen: '+names(M[seg]));
-    $('exp').innerHTML=ex.map(e=>`<option value="${e}">${fmtD(e)}</option>`).join('');await load(false)
+    $('exp').innerHTML=ex.map(e=>`<option value="${e}">${fmtD(e)}</option>`).join('');await load(false);startTrend()
   }catch(e){fail(e)}
 }
 $('sym').onchange=switchIdx;$('exp').onchange=()=>{ST=null;load(false)};$('load').onclick=()=>load(false);$('mode').onchange=setMode;
+let trT=null;function startTrend(){loadTrend();loadFII();clearInterval(trT);trT=setInterval(loadTrend,900000)}
 $('fundsb').onclick=async()=>{
   if(S.demo){$('funds').textContent='Funds are not available in demo mode.';return}
   try{$('funds').textContent='Checking funds…';const r=await Kotak.limits(),d=Array.isArray(r)?r[0]:r;
