@@ -381,6 +381,27 @@ function finalDir(D){
   else D.fii={v:null,t:FII.err||'loading'};
   D.call=call;D.why=why;return D
 }
+const NCDF=x=>{const t=1/(1+0.2316419*Math.abs(x)),d=0.3989423*Math.exp(-x*x/2),p=d*t*(0.3193815+t*(-0.3565638+t*(1.781478+t*(-1.821256+t*1.330274))));return x>0?1-p:p};
+const RF=0.065;
+function b76(F,K,T,s,call){const sd=s*Math.sqrt(T),d1=(Math.log(F/K)+0.5*sd*sd)/sd,d2=d1-sd;return call?F*NCDF(d1)-K*NCDF(d2):K*NCDF(-d2)-F*NCDF(-d1)}
+function impVol(price,F,K,T,call){const p=price/Math.exp(-RF*T),intr=Math.max(0,call?F-K:K-F);if(!(p>intr+0.05))return null;
+  let lo=0.01,hi=3;for(let i=0;i<50;i++){const m=(lo+hi)/2;b76(F,K,T,m,call)>p?hi=m:lo=m}return(lo+hi)/2}
+function modelStats(legs,q,spot){
+  const e=+$('exp').value,T=e>1e9?Math.max((e+36000-Date.now()/1000)/31557600,1/(365*24)):7/365,F=parity(ST.rows)||spot,A=ST.A,r=ST.rows.find(x=>x.k===A.atm);
+  const a=[impVol(r.ce.ltp,F,A.atm,T,true),impVol(r.pe.ltp,F,A.atm,T,false)].filter(x=>x!=null);
+  const sig=a.length?a.reduce((x,y)=>x+y,0)/a.length:A.straddle/(0.8*F*Math.sqrt(T));
+  if(!(sig>0.01&&sig<3))return null;
+  const sd=sig*Math.sqrt(T),mu=Math.log(F)-0.5*sd*sd,n=1500,lo=mu-5*sd,hi=mu+5*sd;let pop=0;
+  for(let i=0;i<n;i++){const z0=lo+(hi-lo)*i/n,z1=lo+(hi-lo)*(i+1)/n;
+    if(pay(legs,Math.exp((z0+z1)/2))>0)pop+=NCDF((z1-mu)/sd)-NCDF((z0-mu)/sd)}
+  if(pay(legs,Math.exp(lo))>0)pop+=NCDF((lo-mu)/sd);if(pay(legs,Math.exp(hi))>0)pop+=1-NCDF((hi-mu)/sd);
+  return{pop,sig,days:T*365,move:F*sd,F}
+}
+function legGk(x,F,T,sig0){
+  if(x.t==='FUT')return{iv:null,delta:1};
+  const call=x.t==='CE',iv=impVol(x.p,F,x.k,T,call),s=iv||sig0,sd=s*Math.sqrt(T),d1=(Math.log(F/x.k)+0.5*sd*sd)/sd,df=Math.exp(-RF*T);
+  return{iv,delta:call?df*NCDF(d1):-df*NCDF(-d1)}
+}
 function hk(c,side){const h=c.hedge;if(h==='wall')return side==='put'?c.pw:c.cw;if(h==='atm')return c.atm;const n=+h||2;return c.sn(side==='put'?c.atm-n*c.s:c.atm+n*c.s)}
 function direction(){
   const A=ST.A,spot=ST.spot,sig=[],arr=SNAP[ST.key]||[],now=Date.now();
@@ -416,16 +437,18 @@ function drawStrat(){
     if(t==='FUT'){const f=ST.fut||{};return{d,k:f.ltp||0,t,p:f.ltp||0,bid:f.bid||0,ask:f.ask||0,ts:f.ts,tok:f.tok}}
     const o=(rows.find(r=>r.k===k)||{})[t==='CE'?'ce':'pe']||{};return{d,k,t,p:o.ltp||0,bid:o.bid||0,ask:o.ask||0,ts:o.ts,tok:o.tok}});
   const net=legs.filter(x=>x.t!=='FUT').reduce((t,x)=>t+(x.d==='SELL'?x.p:-x.p),0),P=profile(legs),em=A.straddle;
+  let MS=null;try{MS=modelStats(legs,q,spot)}catch{}
+  const GK=MS?legs.map(x=>legGk(x,MS.F,MS.days/365,MS.sig)):null,nd=GK?legs.reduce((t,x,i)=>t+(x.d==='BUY'?1:-1)*GK[i].delta,0):null;
   const fit=fv?'':v==='Volatile'?`ATM straddle implies a move of about ±${em.toFixed(0)} (${(em/spot*100).toFixed(1)}%); this pays off only if the move is larger.`:
     v===bias?`Matches the current OI lean (PCR ${A.pcr.toFixed(2)}).`:`Goes against the current OI lean (${bias}, PCR ${A.pcr.toFixed(2)}). Treat with caution.`;
   let fn='';const f=legs.find(x=>x.t==='FUT'),h=legs.find(x=>x.t!=='FUT');
   if(f&&h){const lg=f.d==='BUY',tg=lg?A.cw:A.pw,gain=(lg?tg-f.k:f.k-tg)-h.p,loss=-P.mn;
     fn=`<p class="sub" style="margin-top:8px">${lg?'Long':'Short'} future at ${f.k.toFixed(1)} with a ${h.k} ${h.t} hedge (cost ${h.p.toFixed(1)}). Target ${tg} (OI ${lg?'resistance':'support'}): ${inr(gain*q)}; worst case ${inr(loss*q)}; reward:risk ${loss>0?(gain/loss).toFixed(1):'-'}. Consider exiting the future if spot closes beyond the hedge strike ${h.k}. Profit beyond the target is not capped.</p>`}
   $('sc').innerHTML=(ST.flip?`<p class="warn">${ST.flip}</p>`:'')+dh+chg+(fit?`<p class="sub" style="margin-top:8px">${fit}</p>`:'')+
-  legs.map(x=>`<div class="leg"><span class="${x.d==='BUY'?'buy':'sell'}">${lbl(x)}</span><span>${x.p.toFixed(2)}</span></div>`).join('')+
+  legs.map((x,i)=>`<div class="leg"><span class="${x.d==='BUY'?'buy':'sell'}">${lbl(x)}${GK?`<br><small>${GK[i].iv?'IV '+(GK[i].iv*100).toFixed(1)+'% · ':''}Δ ${GK[i].delta>=0?'+':''}${GK[i].delta.toFixed(2)}</small>`:''}</span><span>${x.p.toFixed(2)}</span></div>`).join('')+
   `<div class="kv" style="margin-top:8px"><div><span>Net ${net>=0?'credit':'debit'} (${lots} lot${lots>1?'s':''} × ${LOT[$('sym').value]} = ${q} qty)</span><b>${inr(Math.abs(net)*q)}</b></div>
   <div><span>Max profit</span><b>${fv?'Uncapped':inr(P.mx*q)}</b></div><div><span>Max loss</span><b>${inr(-P.mn*q)}</b></div>
-  <div><span>Breakeven</span><b>${P.be.map(x=>x.toFixed(0)).join(' / ')||'-'}</b></div></div>${fn}
+  <div><span>Breakeven (distance from spot)</span><b style="font-size:15px">${P.be.map(x=>x.toFixed(0)+' ('+(x>=spot?'+':'')+((x/spot-1)*100).toFixed(2)+'%)').join('<br>')||'-'}</b></div>${MS?`<div><span>Probability of profit (model)</span><b>${(MS.pop*100).toFixed(0)}%</b></div><div><span>1σ range to expiry</span><b style="font-size:15px">${(spot-MS.move).toFixed(0)} – ${(spot+MS.move).toFixed(0)}<br><small>±${MS.move.toFixed(0)} (${(MS.move/spot*100).toFixed(1)}%)</small></b></div><div><span>Net delta (position)</span><b>${nd>=0?'+':''}${nd.toFixed(2)}<br><small>${nd>=0?'gains':'loses'} ₹${Math.abs(nd*q).toFixed(0)} per +1 index point</small></b></div>`:''}</div>${MS?`<p class="sub" style="margin-top:8px">Probability model: lognormal at expiry with ATM implied volatility ${(MS.sig*100).toFixed(1)}% and ${MS.days.toFixed(1)} days left. It ignores skew, fat tails, events and your trend view, and it uses current LTPs, not the prices you may get. It is an estimate, not a forecast.</p>`:''}${fn}
   ${/undefined/.test(name)?'<p class="warn">Short strangle has no cap on loss and needs large margin.</p>':''}
   <p class="sub" style="margin-top:8px">Expiry payoff at current LTPs, before charges. Screen built from OI and PCR only; it ignores IV and events.</p>`;
   ST.mg={legs,P,q};ST.legKey=name+'|'+lots+'|'+JSON.stringify(ST.spec)+'|'+($('hedge')?$('hedge').value:'');drawMargin();
@@ -450,13 +473,13 @@ function drawMargin(){
   const{legs,P,q}=ST.mg,hasF=legs.some(l=>l.t==='FUT'),buy=legs.filter(l=>l.d==='BUY'&&l.t!=='FUT').reduce((t,l)=>t+l.p,0)*q;
   let est;if(hasF){const f=legs.find(l=>l.t==='FUT');est=f.k*q*FUTM+buy}else est=P.mn===-Infinity?null:Math.max(-P.mn*q,buy);
   const av=S.demo?500000:S.avail,kt=S.kmg&&S.kmg.key===ST.legKey?S.kmg.total:null,need=est!=null?est:kt;
-  const sf=av!=null&&need!=null?Math.max(0,need-av):null;
+  const sf=av!=null&&need!=null?Math.max(0,need-av):null,rr=need>0?`<div><span>Max profit ÷ required</span><b>${P.mx===Infinity||hasF?'Uncapped':(P.mx*q/need*100).toFixed(0)+'%'}</b></div><div><span>Max loss ÷ required</span><b>${P.mn===-Infinity?'Unlimited':(-P.mn*q/need*100).toFixed(0)+'%'}</b></div>`:'';
   $('mg').innerHTML=`<h2 style="margin-top:14px">Margin</h2><div class="kv">
   <div><span>Available${S.demo?' (demo)':''}</span><b>${av!=null?inr(av):'tap Check'}</b></div>
   <div><span>Required${est!=null?(hasF?' (rough)':' (estimate)'):kt!=null?' (Kotak)':''}</span><b>${need!=null?inr(need):'tap Check'}</b></div>
   <div><span>Shortfall</span><b class="${sf>0?'sell':'buy'}">${sf==null?'-':sf>0?inr(sf):'None'}</b></div>
-  <div><span>Kotak check (legs alone)</span><b>${kt!=null?inr(kt):'-'}</b></div></div>
-  <p class="sub" style="margin-top:8px">${hasF?'Futures margin is a rough figure: '+(FUTM*100)+'% of contract value plus the hedge premium, with no hedge offset. Kotak blocks SPAN margin, so use Check funds & margin for its numbers. ':est==null?'This strategy has no cap on loss, so the estimate is not possible; use the Kotak figure, which has no hedge offset. ':'Estimate = worst-case loss (or premium for a debit strategy). Kotak usually blocks somewhat more for hedged credit spreads. '}The hedge benefit applies only after the buy legs are filled, so buys go first.</p>`
+  <div><span>Kotak check (legs alone)</span><b>${kt!=null?inr(kt):'-'}</b></div>${rr}</div>
+  <p class="sub" style="margin-top:8px">${hasF?'Futures margin is a rough figure: '+(FUTM*100)+'% of contract value plus the hedge premium, with no hedge offset. Kotak blocks SPAN margin, so use Check funds & margin for its numbers. ':est==null?'This strategy has no cap on loss, so the estimate is not possible; use the Kotak figure, which has no hedge offset. ':'Estimate = worst-case loss (or premium for a debit strategy). Kotak usually blocks somewhat more for hedged credit spreads. '}Kotak checks one order at a time and only sees positions you already hold, so run Check funds &amp; margin again after the buy legs are filled to include the hedge benefit. Buys go first.</p>`
 }
 async function mCheck(){
   const R=$('mgr');R.textContent='Checking…';
