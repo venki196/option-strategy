@@ -153,15 +153,18 @@ const Kotak={
   async hist(sym,interval,from,to){
     const U=S.base+'/market-data/1.0/historical/details',qs=o=>Object.entries(o).map(([k,v])=>k+'='+encodeURIComponent(v)).join('&');
     const hs=[this.H(),{Authorization:S.ck,Auth:S.tok,Sid:S.sid,'neo-fin-key':'neotradeapi'}];
-    const ps=[{neosymbol:sym,interval,from_date:from,to_date:to},{neosymbol:sym,interval,from,to},{symbol:sym,interval,from_date:from,to_date:to}];
+    const ep=d=>Math.floor(Date.parse(d+'T00:00:00+05:30')/1000);
+    const ps=[{neosymbol:sym,interval,from_date:from,to_date:to},{neosymbol:sym,interval,from,to},{symbol:sym,interval,from_date:from,to_date:to},
+      {neosymbol:sym,interval,fromDate:from,toDate:to},{neosymbol:sym,interval,start_date:from,end_date:to},
+      {neosymbol:sym,interval,from:ep(from),to:ep(to)+86399},{neosymbol:sym,interval,from_date:ep(from),to_date:ep(to)+86399},{neosymbol:sym,interval,start:from,end:to}];
     const wait=ms=>new Promise(r=>setTimeout(r,ms)),lim=m=>/429|rate limit|too many/i.test(m);
     let last='';
-    for(const hi of (S.hh!=null?[S.hh]:[0,1]))for(const pi of (S.hp!=null?[S.hp]:[0,1,2])){
+    for(const hi of (S.hh!=null?[S.hh]:[0]))for(const pi of (S.hp!=null?[S.hp]:[0,1,2,3,4,5,6,7])){
       for(let n=0;n<4;n++){
         const gap=1600-(Date.now()-(S.hl||0));if(gap>0)await wait(gap);S.hl=Date.now();
         try{const r=await http('GET',U+'?'+qs(ps[pi]),hs[hi]),c=r&&((r.data&&r.data.candles)||r.candles);
           if(Array.isArray(c)){S.hh=hi;S.hp=pi;return c}last=JSON.stringify(r).slice(0,160);break}
-        catch(e){last=String(e.message||e).slice(0,160);if(lim(last)){await wait(3000*Math.pow(2,n));continue}break}}
+        catch(e){last=String(e.message||e).slice(0,160);if(/no data|not available|not yet opened/i.test(last)){S.hh=hi;S.hp=pi;return[]}if(lim(last)){await wait(3000*Math.pow(2,n));continue}break}}
       if(lim(last))throw new Error('history: '+last)}
     throw new Error('history: '+(last||'no candles'))
   },
@@ -326,7 +329,7 @@ function tf(bars,kind){
   return{v,rsi:r,e20,e50,last,ob:r>70,os:r<30,n:c.length}
 }
 let trBusy=false;
-async function loadTrend(){
+async function trendKotak(){
   if(S.demo||trBusy||!S.base)return;trBusy=true;if(!TR.ok)TR.err='loading candles (the first load takes about a minute)';
   const sym=$('sym').value,spot=S.spotSym||IDX[sym].spot[0],key='os_c30_'+sym,DAY=864e5,end=new Date();
   let bars=[];try{bars=JSON.parse(localStorage.getItem(key)||'[]')}catch{}
@@ -334,7 +337,7 @@ async function loadTrend(){
     bars=[...m.values()].sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:Number(a.t)-Number(b.t)||(a.t<b.t?-1:1)).slice(-4600);
     try{localStorage.setItem(key,JSON.stringify(bars))}catch{}};
   const calc=()=>{TR.h=tf(hourly(bars.slice(-300)),'H');TR.d=tf(grp(bars,b=>b.d),'D');TR.w=tf(grp(bars,wk),'D');TR.n=bars.length;
-    TR.ok=!!TR.d;TR.err=TR.ok?'':'only '+bars.length+' candles so far'};
+    TR.ok=!!TR.d;TR.src='Kotak';TR.err=TR.ok?'':'only '+bars.length+' candles so far'};
   try{
     const ranges=[];
     if(bars.length)ranges.push([new Date(Date.parse(bars[bars.length-1].d)-3*DAY),end]);
@@ -347,6 +350,30 @@ async function loadTrend(){
       if(ST&&$('sc')&&ST.spec!==undefined)drawStrat()}
   }catch(e){TR.err=String(e.message||e);if(/429|rate limit|too many/i.test(TR.err)){TR.err='Kotak rate limit hit; retrying in 1 minute (the chain refresh is paused while history loads)';setTimeout(loadTrend,60000)}}finally{trBusy=false}
   if(ST&&$('sc')&&ST.spec!==undefined)drawStrat()
+}
+const YH={NIFTY:'^NSEI',BANKNIFTY:'^NSEBANK',SENSEX:'^BSESN',FINNIFTY:'NIFTY_FIN_SERVICE.NS',MIDCPNIFTY:'NIFTY_MID_SELECT.NS'};
+async function yahoo(sym,interval,range){
+  const r=await http('GET','https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(sym)+'?interval='+interval+'&range='+range+'&includePrePost=false',{'User-Agent':'Mozilla/5.0','Accept':'application/json'});
+  const j=typeof r==='string'?JSON.parse(r):r,x=j&&j.chart&&j.chart.result&&j.chart.result[0];
+  if(!x)throw new Error(JSON.stringify((j&&j.chart&&j.chart.error)||j).slice(0,140));
+  const q=x.indicators.quote[0],out=[];
+  (x.timestamp||[]).forEach((t,i)=>{if(q.close[i]!=null&&q.open[i]!=null&&q.high[i]!=null&&q.low[i]!=null)out.push({o:q.open[i],h:q.high[i],l:q.low[i],c:q.close[i]})});
+  return out
+}
+async function trendYahoo(){
+  if(trBusy)return;trBusy=true;TR.err='loading candles from Yahoo Finance';
+  try{const s=YH[$('sym').value];if(!s)throw new Error('no symbol mapped for this index');
+    const h=await yahoo(s,'60m','60d'),d=await yahoo(s,'1d','2y'),w=await yahoo(s,'1wk','5y');
+    TR.h=tf(h.slice(-300),'H');TR.d=tf(d,'D');TR.w=tf(w,'D');TR.ok=!!(TR.d&&TR.w);TR.src='Yahoo Finance, unofficial';TR.err=TR.ok?'':'not enough candles from Yahoo'
+  }catch(e){TR.ok=false;TR.err='Yahoo: '+String(e.message||e)}finally{trBusy=false}
+  if(ST&&$('sc')&&ST.spec!==undefined)drawStrat()
+}
+async function loadTrend(){
+  if(S.demo||!S.base||trBusy)return;
+  if(!S.histBad){await trendKotak();
+    if(TR.ok||/429|rate limit|too many|loading|so far/i.test(TR.err||''))return;
+    S.histBad=true}
+  await trendYahoo()
 }
 function parseFII(t){
   const L=String(t).split(/\r?\n/).map(x=>x.split(',').map(s=>s.trim())),hi=L.findIndex(r=>/client type/i.test(r[0]));if(hi<0)return null;
@@ -432,7 +459,7 @@ function direction(){
 function dirHtml(d){
   const cls=d.call==='Bullish'?'buy':d.call==='Bearish'?'sell':'',row=(n,v,t)=>`<div class="leg"><span>${n} <small>${t}</small></span><b class="${v>0?'buy':v<0?'sell':''}">${v==null?'waiting':v>0?'Bullish':v<0?'Bearish':'Neutral'}</b></div>`;
   return `<div style="margin-top:8px"><small>OPTION DATA (${d.opt})</small>${d.sig.map(x=>row(x.n,x.v,x.t)).join('')}
-  <small>TREND (candles)</small>${d.trend.map(x=>row(x.n,x.v,x.t)).join('')}
+  <small>TREND (candles${TR.src?' · '+TR.src:''})</small>${d.trend.map(x=>row(x.n,x.v,x.t)).join('')}
   <small>FII POSITIONING</small>${d.fii?row('FII futures',d.fii.v,d.fii.t):''}</div>
   <p style="margin:8px 0 0">Signal (${d.hz}): <b class="${cls}">${d.call}</b></p>
   ${d.why.length?`<p class="sub" style="margin:4px 0 0">${d.why.join(' ')}</p>`:''}
