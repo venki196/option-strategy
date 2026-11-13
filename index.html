@@ -1,10 +1,8 @@
 <!doctype html>
-<html lang="en">
- <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <title>Kotak Neo Options</title>
-  <style>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Kotak Neo Options</title>
+<style>
 :root{--bg:#f2f5f9;--card:#fff;--ink:#0f1b2d;--mut:#64748b;--line:#e2e8f0;--tile:#f1f5f9;--acc:#2563eb;--acc2:#1d4ed8;--ce:#2563eb;--pe:#d97706;--ok:#16a34a;--bad:#dc2626;--warn:#d97706;--pur:#7c3aed;--shadow:0 1px 2px rgba(15,27,45,.06),0 4px 14px rgba(15,27,45,.06);color-scheme:light dark}
 @media(prefers-color-scheme:dark){:root{--bg:#0a111d;--card:#121b2c;--ink:#e6edf7;--mut:#8aa0bd;--line:#223049;--tile:#182338;--acc:#4f8cff;--acc2:#3b7bf5;--ce:#6aa0ff;--pe:#fbbf24;--ok:#34d399;--bad:#f87171;--warn:#fbbf24;--pur:#a78bfa;--shadow:0 1px 2px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.35)}}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{margin:0}
@@ -37,6 +35,7 @@ button.okb{background:linear-gradient(180deg,#22c55e,#16a34a);color:#fff;box-sha
 .chip[data-v="Bearish"].on{background:var(--bad);border-color:var(--bad)}
 .chip[data-v="Volatile"].on{background:var(--warn);border-color:var(--warn)}
 .chip[data-v="Futures + hedge"].on{background:var(--pur);border-color:var(--pur)}
+.chip[data-v="Safe selling (σ)"].on{background:#0d9488;border-color:#0d9488;box-shadow:0 2px 8px rgba(13,148,136,.3)}
 .sr{display:none}
 .kv{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .kv>div{background:var(--tile);border-radius:12px;padding:10px 12px}
@@ -53,62 +52,53 @@ td.c i{right:0;background:var(--ce)}td.p i{left:0;background:var(--pe)}
 .hide{display:none}small{color:var(--mut)}.warn{color:var(--bad);font-size:13px}
 .res{white-space:pre-wrap;font:12px/1.4 ui-monospace,monospace;background:var(--tile);border-radius:12px;padding:10px;margin-top:10px}
 .chk{display:flex;gap:8px;align-items:center;margin:12px 0 0;font-size:14px;color:var(--ink);text-transform:none;letter-spacing:0;font-weight:500}.chk input{width:auto}
-</style>
- </head>
- <body>
-  <div class="hero">
-   <div class="brand">
-    Kotak Neo <b>Options</b>
-   </div>
-   <span class="pill" id="stp"><i></i><span id="stt">Offline</span></span>
-  </div>
-  <p class="sub">Option chain, strategies by market view, Nifty futures with hedge, live ticks and order ticket.</p>
-  <div class="card" id="login">
-   <h2>Connect</h2>
-   <label>Consumer key (Neo app → More → Trade API)</label><input id="ck" type="password" autocomplete="off">
-   <div class="row">
-    <div>
-     <label>UCC</label><input id="ucc">
-    </div>
-    <div>
-     <label>Mobile (+91…)</label><input id="mob" inputmode="tel">
-    </div>
-   </div>
-   <div class="row">
-    <div>
-     <label>TOTP (6 digits)</label><input id="totp" inputmode="numeric" maxlength="6">
-    </div>
-    <div>
-     <label>MPIN</label><input id="mpin" type="password" inputmode="numeric">
-    </div>
-   </div>
-   <button id="go">Log in</button>
-   <button class="alt" id="demo">Try with demo data</button>
-   <p id="err"></p>
-   <small>Consumer key, UCC and mobile are kept on this device. TOTP and MPIN are never stored.</small>
-  </div>
-  <div class="card hide" id="ctl">
-   <label style="margin-top:0">Index</label>
-   <div class="chips" id="symC"></div>
-   <select id="sym" class="sr"><option>NIFTY</option><option>BANKNIFTY</option><option>FINNIFTY</option><option>MIDCPNIFTY</option><option>SENSEX</option></select> <label>Expiry</label><select id="exp"></select> <label>Updates</label>
-   <div class="chips" id="modeC"></div>
-   <select id="mode" class="sr"><option value="manual">Manual</option><option value="auto">Auto 5 s</option><option value="live">Live ticks</option></select>
-   <div class="btns">
-    <button class="alt" id="load">⟳ Refresh</button>
-    <button class="alt" id="fundsb">₹ Funds</button>
-   </div>
-   <div class="row">
-    <button class="alt" id="logoutb">⏻ Log out</button>
-   </div>
-   <p id="funds" class="sub" style="margin:10px 0 0"></p>
-   <p id="wsst" class="sub" style="margin:4px 0 0"></p>
-   <p id="err2" class="warn"></p>
-  </div>
-  <div id="out"></div>
-  <script>
+.pfrow{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid var(--line);align-items:flex-start}
+.pfrow:first-of-type{border-top:0}
+.pfmain{min-width:0;flex:1}
+.pfmain b{display:block;font-size:13.5px;overflow-wrap:anywhere}
+.pfmain small{display:block;font-size:11px;color:var(--mut);line-height:1.5}
+.pfnum{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;font-size:13px}
+.pfnum b{font-size:14px}
+.pfnum small{display:block;font-size:11px;color:var(--mut)}
+.pfsum{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
+.pfsum>div{background:var(--tile);border-radius:12px;padding:10px 12px}
+.pfsum b{display:block;font-size:16px;margin-top:2px;font-variant-numeric:tabular-nums}
+.pfsum small{display:block;font-size:11px}
+.pfsum span{font-size:11px;color:var(--mut);font-weight:600}
+</style></head><body>
+<div class="hero"><div class="brand">Kotak Neo <b>Options</b></div>
+<div style="display:flex;gap:8px;align-items:center">
+<button class="chip" id="pfb">📊 Portfolio</button>
+<span class="pill" id="stp"><i></i><span id="stt">Offline</span></span></div></div>
+<p class="sub">Option chain, strategies by market view, Nifty futures with hedge, live ticks and order ticket.</p>
+
+<div class="card" id="login">
+<h2>Connect</h2>
+<label>Consumer key (Neo app → More → Trade API)</label><input id="ck" type="password" autocomplete="off">
+<div class="row"><div><label>UCC</label><input id="ucc"></div><div><label>Mobile (+91…)</label><input id="mob" inputmode="tel"></div></div>
+<div class="row"><div><label>TOTP (6 digits)</label><input id="totp" inputmode="numeric" maxlength="6"></div><div><label>MPIN</label><input id="mpin" type="password" inputmode="numeric"></div></div>
+<button id="go">Log in</button><button class="alt" id="demo">Try with demo data</button>
+<p id="err"></p><small>Consumer key, UCC and mobile are kept on this device. TOTP and MPIN are never stored.</small>
+</div>
+
+<div class="card hide" id="ctl">
+<label style="margin-top:0">Index</label><div class="chips" id="symC"></div>
+<select id="sym" class="sr"><option>NIFTY</option><option>BANKNIFTY</option><option>FINNIFTY</option><option>MIDCPNIFTY</option><option>SENSEX</option></select>
+<label>Expiry</label><select id="exp"></select>
+<label>Updates</label><div class="chips" id="modeC"></div>
+<select id="mode" class="sr"><option value="manual">Manual</option><option value="auto">Auto 5 s</option><option value="live">Live ticks</option></select>
+<div class="btns"><button class="alt" id="load">⟳ Refresh</button><button class="alt" id="fundsb">₹ Funds</button></div>
+<div class="row"><button class="alt" id="logoutb">⏻ Log out</button></div>
+<p id="funds" class="sub" style="margin:10px 0 0"></p><p id="wsst" class="sub" style="margin:4px 0 0"></p>
+<p id="err2" class="warn"></p>
+</div>
+<div id="out"></div>
+<div id="pfPage" class="hide"></div>
+
+<script>
 const $=id=>document.getElementById(id),S={},M={},LOT={NIFTY:65,BANKNIFTY:30,FINNIFTY:60,MIDCPNIFTY:120,SENSEX:20},MAXLOTS=20;
 ['ck','ucc','mob'].forEach(i=>{try{$(i).value=localStorage.getItem('os_'+i)||''}catch{}});
- 
+
 async function http(method,url,headers,body){
   const form=/x-www-form-urlencoded/.test(headers['Content-Type']||'');
   const C=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.CapacitorHttp;
@@ -118,7 +108,7 @@ async function http(method,url,headers,body){
   const t=await r.text();if(!r.ok)throw new Error(r.status+' '+t.slice(0,300));
   try{return JSON.parse(t)}catch{return t}
 }
- 
+
 const IDX={
   NIFTY:{seg:'nse_fo',spot:['nse_cm|Nifty 50']},
   BANKNIFTY:{seg:'nse_fo',spot:['nse_cm|Nifty Bank']},
@@ -167,11 +157,13 @@ const Kotak={
   },
   limits(){return http('POST',S.base+'/quick/user/limits'+sid(),this.TH(),{jData:JSON.stringify({seg:'ALL',exch:'ALL',prod:'ALL'})})},
   order(o){return http('POST',S.base+'/quick/order/rule/ms/place'+sid(),this.TH(),{jData:JSON.stringify(o)})},
-  check(o){return http('POST',S.base+'/quick/user/check-margin'+sid(),this.TH(),{jData:JSON.stringify(o)})}
+  check(o){return http('POST',S.base+'/quick/user/check-margin'+sid(),this.TH(),{jData:JSON.stringify(o)})},
+  positions(){return http('POST',S.base+'/quick/user/positions'+sid(),this.TH(),{jData:JSON.stringify({seg:'ALL',exch:'ALL',product:'ALL',filter:'ALL'})})},
+  holdings(){return http('POST',S.base+'/quick/user/holdings'+sid(),this.TH(),{jData:JSON.stringify({seg:'ALL',exch:'ALL',product:'ALL'})})}
 };
 const num=v=>{const n=parseFloat(v);return isFinite(n)?n:0};
 const qLtp=q=>num(q.ltp??q.last_traded_price),qOi=q=>num(q.open_int??q.oi??q.openInterest),qTok=q=>String(q.exchange_token??q.instrument_token??''),qBid=q=>num(q.depth&&q.depth.buy&&q.depth.buy[0]&&q.depth.buy[0].price),qAsk=q=>num(q.depth&&q.depth.sell&&q.depth.sell[0]&&q.depth.sell[0].price);
- 
+
 function cols(csv){const L=csv.split(/\r?\n/),h=L[0].split(',').map(s=>s.trim().replace(/;$/,''));
   const ix=n=>h.findIndex(x=>x.toLowerCase()===n.toLowerCase());
   return{L,h,tok:ix('pSymbol'),name:ix('pSymbolName'),ts:ix('pTrdSymbol'),typ:ix('pOptionType'),k:ix('dStrikePrice'),e:ix('lExpiryDate'),it:ix('pInstType')}}
@@ -191,7 +183,7 @@ function parseFut(csv,sym){
 }
 function names(csv){const a=cols(csv);return[...new Set(a.L.slice(1,4000).map(l=>l.split(',')[a.name]))].slice(0,12).join(', ')}
 const fmtD=s=>new Date(s*1000).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'2-digit',timeZone:'UTC'});
- 
+
 /* ---------- analytics ---------- */
 function analyse(rows,spot){
   const ks=rows.map(r=>r.k),s=Math.min(...ks.slice(1).map((k,i)=>k-ks[i]).filter(d=>d>0));
@@ -205,7 +197,7 @@ function analyse(rows,spot){
   return{s,atm,pcr:coi?poi/coi:0,mp,cw,pw,straddle:a.ce.ltp+a.pe.ltp,ks}
 }
 function parity(rows){let b=null;for(const r of rows)if(r.ce.ltp>0&&r.pe.ltp>0){const d=Math.abs(r.ce.ltp-r.pe.ltp);if(!b||d<b.d)b={d,s:r.k+r.ce.ltp-r.pe.ltp}}return b&&b.s}
- 
+
 const LIB={
 Bullish:{
  'Bull put spread':c=>[['SELL',c.pw,'PE'],['BUY',c.sn(c.pw-2*c.s),'PE']],
@@ -226,8 +218,15 @@ Volatile:{
 'Futures + hedge':{
  'Auto (by option data)':c=>c.dir.call==='Bullish'?[['BUY',hk(c,'put'),'PE'],['BUY','FUT','FUT']]:c.dir.call==='Bearish'?[['BUY',hk(c,'call'),'CE'],['SELL','FUT','FUT']]:[],
  'Long future + long put':c=>[['BUY',hk(c,'put'),'PE'],['BUY','FUT','FUT']],
- 'Short future + long call':c=>[['BUY',hk(c,'call'),'CE'],['SELL','FUT','FUT']]}
-};
+ 'Short future + long call':c=>[['BUY',hk(c,'call'),'CE'],['SELL','FUT','FUT']]},
+'Safe selling (σ)':{
+ '1σ short strangle':c=>[['SELL',sdK(c,'call',1),'CE'],['SELL',sdK(c,'put',1),'PE']],
+ '2σ short strangle':c=>[['SELL',sdK(c,'call',2),'CE'],['SELL',sdK(c,'put',2),'PE']],
+ '1σ iron condor':c=>{const p=sdK(c,'put',1),q=sdK(c,'call',1);return[['SELL',p,'PE'],['BUY',c.sn(p-2*c.s),'PE'],['SELL',q,'CE'],['BUY',c.sn(q+2*c.s),'CE']]},
+ '2σ iron condor':c=>{const p=sdK(c,'put',2),q=sdK(c,'call',2);return[['SELL',p,'PE'],['BUY',c.sn(p-2*c.s),'PE'],['SELL',q,'CE'],['BUY',c.sn(q+2*c.s),'CE']]},
+ '1σ bull put spread':c=>{const p=sdK(c,'put',1);return[['SELL',p,'PE'],['BUY',c.sn(p-2*c.s),'PE']]},
+ '1σ bear call spread':c=>{const q=sdK(c,'call',1);return[['SELL',q,'CE'],['BUY',c.sn(q+2*c.s),'CE']]}
+}};
 function pay(legs,x){return legs.reduce((a,l)=>{if(l.t==='FUT')return a+(l.d==='BUY'?x-l.k:l.k-x);const v=l.t==='CE'?Math.max(0,x-l.k):Math.max(0,l.k-x);return a+(l.d==='BUY'?v-l.p:l.p-v)},0)}
 function profile(legs){
   const ks=[...new Set(legs.map(l=>l.k))].sort((a,b)=>a-b),pts=[0,...ks],ys=pts.map(x=>pay(legs,x)),top=ks[ks.length-1];
@@ -237,7 +236,7 @@ function profile(legs){
   if(ys[ys.length-1]*sl<0)be.push(top-ys[ys.length-1]/sl);
   return{mx,mn,be}
 }
- 
+
 /* ---------- render ---------- */
 let ST=null;
 const n0=v=>Math.round(v).toLocaleString('en-IN'),inr=v=>Math.abs(v)===Infinity?'Unlimited':'₹'+n0(v),tick=p=>(Math.round(p/0.05)*0.05).toFixed(2);
@@ -293,12 +292,15 @@ function fillStrat(init){$('strat').innerHTML=Object.keys(LIB[$('view').value]).
 function onStrat(a){if(a!==true)ST.flip='';setSpec();drawStrat();buildTicket();if($('mode').value==='live')depthPoll()}
 function setSpec(){
   const A=analyse(ST.rows,ST.spot),v=$('view').value,sym=$('sym').value,
-    c={atm:A.atm,pw:A.pw,cw:A.cw,s:A.s,sn:k=>A.ks.reduce((b,x)=>Math.abs(x-k)<Math.abs(b-k)?x:b),hedge:$('hedge')?$('hedge').value:'2'};
-  ST.err='';ST.specDir=null;
+    c={atm:A.atm,pw:A.pw,cw:A.cw,s:A.s,spot:ST.spot,sn:k=>A.ks.reduce((b,x)=>Math.abs(x-k)<Math.abs(b-k)?x:b),hedge:$('hedge')?$('hedge').value:'2'};
+  ST.err='';ST.specDir=null;ST.sdUsed=null;ST.em=null;
   try{if(v==='Futures + hedge'){
       if(sym!=='NIFTY')throw new Error('The futures strategy is built for NIFTY only. Select NIFTY.');
       if(!ST.fut)throw new Error('Nifty futures contract not found for this expiry.');
       c.dir=direction();ST.specDir=c.dir.call}
+    if(v==='Safe selling (σ)'){
+      const em=expMove();c.sd=em.move;c.em=em;ST.em=em;
+      const m=/^(\d)/.exec($('strat').value);ST.sdUsed=m?+m[1]:1}
     ST.spec=LIB[v][$('strat').value](c)
   }catch(e){ST.spec=null;ST.err=e.message}
 }
@@ -457,11 +459,32 @@ function modelStats(legs,q,spot){
   return{pop,sig,days:T*365,move:F*sd,F}
 }
 function atmIV(){
-  const e=+$('exp').value,T=e>1e9?Math.max((e+36000-Date.now()/1000)/31557600,1/(365*24)):7/365,F=parity(ST.rows)||ST.spot,A=ST.A,r=ST.rows.find(x=>x.k===A.atm);
+  if(!ST||!ST.rows)return null;
+  const A=ST.A||analyse(ST.rows,ST.spot);
+  const e=+$('exp').value,T=e>1e9?Math.max((e+36000-Date.now()/1000)/31557600,1/(365*24)):7/365,F=parity(ST.rows)||ST.spot,r=ST.rows.find(x=>x.k===A.atm);
+  if(!r)return null;
   const a=[impVol(r.ce.ltp,F,A.atm,T,true),impVol(r.pe.ltp,F,A.atm,T,false)].filter(x=>x!=null);
   return a.length?a.reduce((x,y)=>x+y,0)/a.length:null
 }
 function volSignal(){const iv=atmIV();if(!iv||!TR.rv)return null;const ratio=iv/TR.rv;return{iv,rv:TR.rv,ratio,label:ratio>=1.15?'rich':ratio<=0.85?'cheap':'fair'}}
+function expT(){const e=+$('exp').value;return e>1e9?Math.max((e+36000-Date.now()/1000)/31557600,1/(365*24)):7/365}
+function expMove(){
+  if(!ST||!ST.rows)throw new Error('Chain not loaded.');
+  const A=ST.A||analyse(ST.rows,ST.spot),T=expT(),iv=atmIV();
+  const s=iv||(A.straddle/(0.8*ST.spot*Math.sqrt(T)));
+  if(!(s>0)||!isFinite(s))throw new Error('Cannot estimate the expiry move: ATM implied volatility is unavailable.');
+  return{iv:s,T,move:ST.spot*s*Math.sqrt(T)}
+}
+function sdK(c,side,n){
+  const t=side==='put'?c.spot-n*c.sd:c.spot+n*c.sd;let best=null;
+  for(const r of ST.rows){
+    const p=side==='put'?r.pe.ltp:r.ce.ltp;if(!(p>0))continue;
+    const be=side==='put'?r.k-p:r.k+p;
+    if(side==='put'?be<=t:be>=t){if(best==null||(side==='put'?r.k>best:r.k<best))best=r.k}
+  }
+  if(best==null)throw new Error('No strike in this chain sits '+n+'σ ('+Math.round(n*c.sd)+' points) away with its breakeven outside that band. Try a nearer expiry or refresh for a wider chain.');
+  return best;
+}
 function suggest(D,V){
   const cheap=V&&V.label==='cheap',rich=V&&V.label==='rich',vt='';
   if(D.call==='Bullish')return{view:'Bullish',strat:cheap?'Bull call spread':'Bull put spread',why:'Direction is bullish.'+vt+(cheap?' Cheap options favour paying a debit spread.':' A credit spread collects the premium.')};
@@ -529,7 +552,8 @@ function drawStrat(){
   let fn='';const f=legs.find(x=>x.t==='FUT'),h=legs.find(x=>x.t!=='FUT');
   if(f&&h){const lg=f.d==='BUY',tg=lg?A.cw:A.pw,gain=(lg?tg-f.k:f.k-tg)-h.p,loss=-P.mn;
     fn=`<p class="sub" style="margin-top:8px">${lg?'Long':'Short'} future at ${f.k.toFixed(1)} with a ${h.k} ${h.t} hedge (cost ${h.p.toFixed(1)}). Target ${tg} (OI ${lg?'resistance':'support'}): ${inr(gain*q)}; worst case ${inr(loss*q)}; reward:risk ${loss>0?(gain/loss).toFixed(1):'-'}. Consider exiting the future if spot closes beyond the hedge strike ${h.k}. Profit beyond the target is not capped.</p>`}
-  $('sc').innerHTML=(ST.flip?`<p class="warn">${ST.flip}</p>`:'')+SG+dh+chg+(fit?`<p class="sub" style="margin-top:8px">${fit}</p>`:'')+
+  const sdNote=(v==='Safe selling (σ)'&&ST.em)?`<p class="sub" style="margin-top:8px">Strikes are ${ST.sdUsed}σ away. ATM IV ${(ST.em.iv*100).toFixed(1)}% over ${(ST.em.T*365).toFixed(1)} days gives a 1σ move of about ±${Math.round(ST.em.move)} points (${(ST.em.move/spot*100).toFixed(1)}%). Each short leg's breakeven sits outside that band, so the index must travel more than ${ST.sdUsed}σ before the trade loses at expiry. Far-OTM selling earns little premium — that is the trade-off for the higher probability of profit shown below.</p>`:'';
+  $('sc').innerHTML=(ST.flip?`<p class="warn">${ST.flip}</p>`:'')+SG+dh+chg+(fit?`<p class="sub" style="margin-top:8px">${fit}</p>`:'')+sdNote+
   legs.map((x,i)=>`<div class="leg"><span class="${x.d==='BUY'?'buy':'sell'}">${lbl(x)}${GK?`<br><small>${GK[i].iv?'IV '+(GK[i].iv*100).toFixed(1)+'% · ':''}Δ ${GK[i].delta>=0?'+':''}${GK[i].delta.toFixed(2)}</small>`:''}</span><span>${x.p.toFixed(2)}</span></div>`).join('')+
   `<div class="kv" style="margin-top:8px"><div><span>Net ${net>=0?'credit':'debit'} (${lots} lot${lots>1?'s':''} × ${LOT[$('sym').value]} = ${q} qty)</span><b>${inr(Math.abs(net)*q)}</b></div>
   <div><span>Max profit</span><b>${fv?'Uncapped':inr(P.mx*q)}</b></div><div><span>Max loss</span><b>${inr(-P.mn*q)}</b></div>
@@ -578,7 +602,7 @@ async function mCheck(){
     drawMargin()
   }catch(e){R.textContent='Funds/margin error: '+(e.message||e)}
 }
- 
+
 /* ---------- paper trades (dry run) ---------- */
 let PP=[];try{PP=JSON.parse(localStorage.getItem('os_pp')||'[]')}catch{}
 const savePP=()=>{try{localStorage.setItem('os_pp',JSON.stringify(PP))}catch{}};
@@ -630,7 +654,7 @@ function drawPaper(){
   el.innerHTML=`<h2>Paper trades (dry run)</h2><div class="kv"><div><span>Open P&amp;L (live)</span><b class="${open>=0?'buy':'sell'}">${(open>=0?'+':'-')+inr(Math.abs(open))}</b></div><div><span>Realized</span><b class="${real>=0?'buy':'sell'}">${(real>=0?'+':'-')+inr(Math.abs(real))}</b></div></div>`+html+
   `<p class="sub" style="margin-top:8px">Simulation only. Buys fill at the best ask and sells at the best bid (LTP if depth is missing), and a limit fills only when that price is at or better than your limit. P&amp;L is marked at the price you could close at: bid for longs, ask for shorts. Bid/ask refresh about every 5 seconds. No charges or margin check. Sell legs wait until every buy leg is filled. Square-off buys back short legs first, then sells long legs.</p><button class="alt" onclick="clearPaper()">✕ Clear paper trades</button>`
 }
- 
+
 /* ---------- order placement ---------- */
 async function sendLegs(list,R,base){
   const out=[];
@@ -665,7 +689,7 @@ async function place(){
     }else R.textContent+='\nAll legs sent. Verify in the Neo order book.'
   }catch(e){R.textContent='Error: '+(e.message||e)}
 }
- 
+
 /* ---------- live ticks (Kotak native_batch WebSocket) ---------- */
 const ENUM={nse_cm:1,nse_fo:2,cde_fo:3,nse_com:4,bse_cm:5,bse_fo:6,bse_cd:7,bse_co:8,mcx_fo:9,ncd_co:10};
 const W={ws:null,div:{},map:{},on:false};let pend=0;
@@ -714,7 +738,112 @@ function setStatus(){const m=$('mode').value,p=$('stp'),t=$('stt');if(!p)return;
 function setMode(){clearInterval(TM);wsStop();$('wsst').textContent='';const m=$('mode').value;setStatus();
   if(m==='auto')TM=setInterval(()=>load(true),5000);
   if(m==='live'&&ST){mapRows();wsStart();depthPoll();TM=setInterval(depthPoll,5000)}}
- 
+
+/* ---------- portfolio: positions & holdings ---------- */
+const PF={pos:null,hold:null,err:'',t:0,busy:false};let pfT=null;
+const pick=(o,...ks)=>{for(const k of ks)if(o&&o[k]!=null&&o[k]!=='')return o[k];return null};
+const arrOf=r=>Array.isArray(r)?r:(Array.isArray(r&&r.data)?r.data:(Array.isArray(r&&r.data&&r.data.data)?r.data.data:[]));
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const sv=v=>v==null?'–':(v>=0?'+':'-')+inr(Math.abs(v));
+const sp=v=>v==null?'':(v>=0?'+':'-')+Math.abs(v).toFixed(1)+'%';
+function pfQty(o){
+  const b=num(pick(o,'flBuyQty')),s=num(pick(o,'flSellQty')),cb=num(pick(o,'cfBuyQty')),cs=num(pick(o,'cfSellQty'));
+  if(b||s||cb||cs)return b+cb-s-cs;
+  return num(pick(o,'netqty','netQty','holdqty','qty'));
+}
+function pfAvg(o,q){
+  const a=num(pick(o,'avgPrc','avgPrice','avgprc','upldprc','avgprice','buyAvgPrice'));
+  if(a>0)return a;
+  const amt=num(pick(o,'buyAmt','buyamt','investmentAmt')),n=Math.abs(q)||num(pick(o,'holdqty','cfBuyQty','flBuyQty'));
+  return amt>0&&n>0?amt/n:0;
+}
+function pfNorm(o,qty){
+  return{nm:String(pick(o,'trdSym','tsym','tradingSymbol','sym','symbol')||'').trim(),qty,avg:pfAvg(o,qty),
+    ltp:num(pick(o,'lp','ltp','lastPrice','last_traded_price')),
+    prev:num(pick(o,'c','close','prevClose','pc','closeprice')),
+    tok:String(pick(o,'tok','instrument_token','token')||''),
+    exch:String(pick(o,'exch','exchange')||''),prod:String(pick(o,'prod','product')||''),
+    pnlApi:pick(o,'urmtom','unrealisedPnl','unrealizedPnl','pnl'),
+    dayApi:pick(o,'mtoM','mtm','dayPnl','MtoM')};
+}
+const parsePos=r=>arrOf(r).map(o=>{const q=pfQty(o);if(!q)return null;const x=pfNorm(o,q);return x.nm?x:null}).filter(Boolean);
+const parseHold=r=>arrOf(r).map(o=>{const q=num(pick(o,'holdqty','qty','netqty','netQty'));if(!q)return null;const x=pfNorm(o,q);if(!x.prod)x.prod='CNC';return x.nm?x:null}).filter(Boolean);
+function pfCalc(r){
+  const q=r.qty,avg=r.avg||0,ltp=r.ltp||0,invested=Math.abs(avg*q),cur=Math.abs(ltp*q);
+  const pnl=(avg>0&&ltp>0)?(ltp-avg)*q:(r.pnlApi!=null?num(r.pnlApi):null);
+  const pnlPct=(pnl!=null&&invested>0)?pnl/invested*100:null;
+  let day=null;
+  if(ltp>0&&r.prev>0)day=(ltp-r.prev)*q;
+  else if(r.dayApi!=null&&r.dayApi!=='')day=num(r.dayApi);
+  else if(pnl!=null)day=pnl;
+  const dbase=Math.abs(((r.prev>0?r.prev:avg)||0)*q);
+  return{invested,cur,pnl,pnlPct,day,dayPct:(day!=null&&dbase>0)?day/dbase*100:null};
+}
+function sumPF(list){let pnl=0,pn=0,day=0,dn=0,inv=0,cur=0;
+  list.forEach(r=>{const x=pfCalc(r);if(x.pnl!=null){pnl+=x.pnl;pn++}if(x.day!=null){day+=x.day;dn++}inv+=x.invested;cur+=x.cur});
+  return{pnl:pn?pnl:null,day:dn?day:null,inv,cur}}
+async function pfQuoteFix(){
+  const rows=[...(PF.pos||[]),...(PF.hold||[])].filter(r=>r.tok&&!(r.ltp>0));
+  if(!rows.length||!S.base)return;
+  const segOf=r=>{const bse=/BSE/i.test(r.exch),eq=/CNC|DELIVERY|HOLD/i.test(r.prod)||(PF.hold||[]).indexOf(r)>=0;return(bse?'bse':'nse')+(eq?'_cm':'_fo')};
+  try{const list=[...new Set(rows.map(r=>segOf(r)+'|'+r.tok))],qs=await Kotak.quotes(list),m={};
+    qs.forEach(q=>{m[qTok(q)]=q});
+    rows.forEach(r=>{const q=m[r.tok];if(!q)return;const v=qLtp(q);if(v>0)r.ltp=v;if(!(r.prev>0))r.prev=num(q.close??q.c??q.prev_close??q.closeprice)});
+  }catch{}
+}
+async function pfLoad(){
+  if(PF.busy)return;
+  if(S.demo){const d=demoPF();PF.pos=d.pos;PF.hold=d.hold;PF.err='Demo data — not your real account.';PF.t=Date.now();drawPF();return}
+  if(!S.base||!S.tok){PF.err='Log in with Kotak to load positions and holdings.';PF.pos=null;PF.hold=null;drawPF();return}
+  PF.busy=true;
+  try{
+    const [pr,hr]=await Promise.all([Kotak.positions().catch(e=>({__e:String(e.message||e)})),Kotak.holdings().catch(e=>({__e:String(e.message||e)}))]);
+    const e1=pr&&pr.__e,e2=hr&&hr.__e;
+    PF.pos=e1?null:parsePos(pr);PF.hold=e2?null:parseHold(hr);
+    PF.err=[e1?'Positions: '+e1:'',e2?'Holdings: '+e2:''].filter(Boolean).join(' · ');
+    PF.t=Date.now();
+    if(/401|unauthori[sz]ed|session/i.test(PF.err)){PF.busy=false;sessionExpired();return}
+    await pfQuoteFix();
+  }catch(e){PF.err=String(e.message||e)}finally{PF.busy=false}
+  drawPF();
+}
+function drawPF(){
+  const el=$('pfPage');if(!el)return;
+  const P=PF.pos||[],H=PF.hold||[],a=sumPF(P),b=sumPF(H);
+  const pct=(v,base)=>v!=null&&base>0?v/base*100:null;
+  const row=(r,kind)=>{const x=pfCalc(r),c1=x.pnl==null?'':x.pnl>=0?'buy':'sell',c2=x.day==null?'':x.day>=0?'buy':'sell';
+    return `<div class="pfrow"><div class="pfmain"><b>${esc(r.nm)}</b>
+    <small>${kind==='hold'?'Holding':'Position'} · qty ${r.qty} · buy ₹${(r.avg||0).toFixed(2)} · now ₹${(r.ltp||0).toFixed(2)}${r.exch?' · '+esc(r.exch):''}${r.prod?' '+esc(r.prod):''}</small></div>
+    <div class="pfnum"><b class="${c1}">${sv(x.pnl)}</b><small class="${c1}">${sp(x.pnlPct)}</small>
+    <small>Today <b class="${c2}">${sv(x.day)}</b> ${sp(x.dayPct)}</small></div></div>`};
+  el.innerHTML=`
+  <div class="hero"><div class="brand">Portfolio</div><span class="pill"><i></i><span>${PF.t?new Date(PF.t).toLocaleTimeString('en-IN'):'—'}</span></span></div>
+  <div class="card"><h2 style="margin-top:0">Summary</h2>
+    <div class="pfsum">
+      <div><span>Positions P&amp;L</span><b class="${a.pnl==null?'':a.pnl>=0?'buy':'sell'}">${sv(a.pnl)}</b><small>${sp(pct(a.pnl,a.inv))}</small></div>
+      <div><span>Positions today</span><b class="${a.day==null?'':a.day>=0?'buy':'sell'}">${sv(a.day)}</b><small>${sp(pct(a.day,a.inv))}</small></div>
+      <div><span>Investments P&amp;L</span><b class="${b.pnl==null?'':b.pnl>=0?'buy':'sell'}">${sv(b.pnl)}</b><small>${sp(pct(b.pnl,b.inv))}</small></div>
+      <div><span>Investments today</span><b class="${b.day==null?'':b.day>=0?'buy':'sell'}">${sv(b.day)}</b><small>${sp(pct(b.day,b.inv))}</small></div>
+    </div>
+    ${PF.err?`<p class="warn" style="margin:8px 0 0">${esc(PF.err)}</p>`:''}
+    <div class="btns" style="margin-top:10px"><button class="alt" id="pfback">← Back</button><button class="alt" id="pfref">⟳ Refresh</button></div>
+  </div>
+  <div class="card"><h2>Open positions <small>(${P.length})</small></h2>
+    ${P.length?P.map(r=>row(r,'pos')).join(''):'<p class="sub">No open F&amp;O positions.</p>'}</div>
+  <div class="card"><h2>Investments <small>(${H.length})</small></h2>
+    ${H.length?`<p class="sub">Invested ${inr(b.inv)} · Current ${inr(b.cur)}</p>`+H.map(r=>row(r,'hold')).join(''):'<p class="sub">No delivery holdings.</p>'}</div>
+  <p class="sub">Buy is the average cost and now is the last traded price from Kotak. Today's P&amp;L is measured from the previous close where available, otherwise from the buy price. Percentages are on the notional at cost. Charges, taxes and corporate actions are not included.</p>`;
+  $('pfback').onclick=pfClose;
+  $('pfref').onclick=()=>{PF.t=0;pfLoad()};
+}
+function pfOpen(){$('ctl').classList.add('hide');$('out').classList.add('hide');$('pfPage').classList.remove('hide');window.scrollTo(0,0);pfLoad();clearInterval(pfT);pfT=setInterval(pfLoad,20000)}
+function pfClose(){clearInterval(pfT);pfT=null;$('pfPage').classList.add('hide');$('out').classList.remove('hide');if($('login').classList.contains('hide'))$('ctl').classList.remove('hide')}
+function demoPF(){
+  const mk=(nm,qty,avg,ltp,prev,prod)=>({nm,qty,avg,ltp,prev,tok:'',exch:'NSE',prod,pnlApi:null,dayApi:null});
+  return{pos:[mk('NIFTY24AUG24500CE',65,123.4,150.2,141.0,'NRML'),mk('BANKNIFTY24AUG52000PE',-30,280.5,210.1,225.0,'NRML')],
+    hold:[mk('RELIANCE-EQ',40,2850,2941.5,2920,'CNC'),mk('INFY-EQ',25,1620,1588.2,1595,'CNC'),mk('M&M-EQ',15,2900,3012,2998,'CNC')]};
+}
+
 /* ---------- demo + wiring ---------- */
 function demo(){
   const spot=24512.4,rows=[];
@@ -761,7 +890,8 @@ async function load(auto){
     let spot=0;S.spotSym='';
     for(const c of cfg.spot){try{const q=await Kotak.quotes([c]);spot=qLtp(q[0]||{});if(spot){S.spotSym=c;break}}catch{}}
     const all=parseMaster(M[cfg.seg],sym).filter(r=>r.exp===ex),ks=[...new Set(all.map(r=>r.k))].sort((a,b)=>a-b);
-    const st=Math.min(...ks.slice(1).map((k,i)=>k-ks[i]).filter(d=>d>0)),ctr=spot||ks[Math.floor(ks.length/2)],w=(spot?12:25)*st;
+    const st=Math.min(...ks.slice(1).map((k,i)=>k-ks[i]).filter(d=>d>0)),ctr=spot||ks[Math.floor(ks.length/2)];
+    const w=(spot?Math.max(12,Math.min(18,Math.ceil(spot*0.045/st))):25)*st;
     const near=all.filter(r=>Math.abs(r.k-ctr)<=w);
     const fx=sym==='NIFTY'?parseFut(M[cfg.seg],sym).filter(f=>f.exp>=ex-86400).sort((a,b)=>a.exp-b.exp)[0]:null;
     const qs=await Kotak.quotes([...near.map(r=>cfg.seg+'|'+r.tok),...(fx?[cfg.seg+'|'+fx.tok]:[])]),byT={};qs.forEach(q=>byT[qTok(q)]=q);
@@ -779,6 +909,7 @@ function saveSess(){try{localStorage.setItem('os_sess',JSON.stringify({d:today()
 function dropSess(){try{localStorage.removeItem('os_sess')}catch{}}
 function resetUi(msg){
   clearInterval(TM);clearInterval(trT);wsStop();ST=null;
+  if($('pfPage')){clearInterval(pfT);pfT=null;$('pfPage').classList.add('hide');$('out').classList.remove('hide')}
   ['base','tok','sid','feed','hs','histBad','hh','hp'].forEach(k=>{delete S[k]});
   $('ctl').classList.add('hide');$('out').innerHTML='';$('login').classList.remove('hide');$('err').textContent=msg||'';$('totp').value='';$('mpin').value=''
 }
@@ -791,8 +922,7 @@ async function restoreSession(){
   Object.assign(S,{base:j.base,tok:j.tok,sid:j.sid,feed:j.feed,hs:j.hs});
   $('login').classList.add('hide');$('ctl').classList.remove('hide');await switchIdx()
 }
+$('pfb').onclick=pfOpen;
 $('logoutb').onclick=logout;
 try{restoreSession()}catch(e){fail(e)}
-</script>
- </body>
-</html>
+</script></body></html>
