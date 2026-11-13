@@ -258,7 +258,7 @@ function build(){
   const A=analyse(ST.rows,ST.spot),bias=A.pcr>=1.2?'Bullish':A.pcr<=0.8?'Bearish':'Neutral';
   $('out').innerHTML=`<div class="card" id="snap"></div>
   <div class="card"><h2>Strategy</h2><label style="margin-top:0">Market view</label><div class="chips" id="viewC"></div><select id="view" class="sr">${Object.keys(LIB).map(v=>`<option ${v===bias?'selected':''}>${v}</option>`).join('')}</select>
-  <div class="row"><div><label>Strategy</label><select id="strat"></select></div><div style="flex:.45"><label>Lots</label><input id="lots" type="number" min="1" step="1" value="1" inputmode="numeric"></div></div><div class="row hide" id="frow"><div><label>Horizon</label><div class="chips" id="hzC"></div><select id="hz" class="sr"><option>Intraday</option><option>Swing</option></select></div><div><label>Hedge strike</label><select id="hedge"><option value="2">2 steps OTM</option><option value="4">4 steps OTM</option><option value="atm">ATM</option><option value="wall">OI wall</option></select></div></div><div id="sc"></div><div id="mg"></div></div>
+  <div class="row"><div><label>Strategy</label><select id="strat"></select></div><div style="flex:.45"><label>Lots</label><input id="lots" type="number" min="1" step="1" value="1" inputmode="numeric"></div></div><div class="row" id="frow"><div><label>Horizon</label><div class="chips" id="hzC"></div><select id="hz" class="sr"><option>Intraday</option><option>Swing</option></select></div><div id="hedgeCol" class="hide"><label>Hedge strike</label><select id="hedge"><option value="2">2 steps OTM</option><option value="4">4 steps OTM</option><option value="atm">ATM</option><option value="wall">OI wall</option></select></div></div><div id="sc"></div><div id="mg"></div></div>
   <div class="card" id="tkc"><h2>Order ticket</h2>
   <label style="margin-top:0">Order type</label><div class="chips" id="otypeC"></div><select id="otype" class="sr"><option value="L">Limit</option><option value="MKT">Market</option></select>
   <div class="row"><div><label>Product</label><select id="prod"><option>NRML</option><option>MIS</option></select></div><div><label>Validity</label><select id="val"><option>DAY</option><option>IOC</option></select></div></div>
@@ -289,7 +289,7 @@ function paint(){
         else if(Date.now()-ST.pend.t>=(HZ==='Swing'?1800000:300000)){ST.pend=null;ST.flip='Signal changed to '+c+' at '+new Date().toLocaleTimeString('en-IN')+'; legs and ticket were updated.';onStrat(true)}}
       else ST.pend=null}}
 }
-function fillStrat(init){$('strat').innerHTML=Object.keys(LIB[$('view').value]).map(n=>`<option>${n}</option>`).join('');$('frow').classList[$('view').value==='Futures + hedge'?'remove':'add']('hide');if(!init)onStrat()}
+function fillStrat(init){$('strat').innerHTML=Object.keys(LIB[$('view').value]).map(n=>`<option>${n}</option>`).join('');$('hedgeCol').classList[$('view').value==='Futures + hedge'?'remove':'add']('hide');if(!init)onStrat()}
 function onStrat(a){if(a!==true)ST.flip='';setSpec();drawStrat();buildTicket();if($('mode').value==='live')depthPoll()}
 function setSpec(){
   const A=analyse(ST.rows,ST.spot),v=$('view').value,sym=$('sym').value,
@@ -326,6 +326,8 @@ function tf(bars,kind){
   else v=last>e20&&r>50&&(e50==null||e20>=e50)?1:last<e20&&r<50&&(e50==null||e20<=e50)?-1:0;
   return{v,rsi:r,e20,e50,last,ob:r>70,os:r<30,n:c.length}
 }
+function rvol(b,n=20){const c=b.map(x=>x.c).filter(x=>x>0).slice(-(n+1));if(c.length<Math.ceil(n/2))return null;
+  const r=[];for(let i=1;i<c.length;i++)r.push(Math.log(c[i]/c[i-1]));const m=r.reduce((a,x)=>a+x,0)/r.length,v=r.reduce((a,x)=>a+(x-m)**2,0)/Math.max(1,r.length-1);return Math.sqrt(v*252)}
 let trBusy=false;
 const IDXTOK={NIFTY:'26000',BANKNIFTY:'26009',FINNIFTY:'26037',MIDCPNIFTY:'26074',SENSEX:'1'};
 const IDXNAMES={NIFTY:['nifty 50'],BANKNIFTY:['nifty bank'],FINNIFTY:['nifty fin service'],MIDCPNIFTY:['nifty midcap select','nifty mid select'],SENSEX:['sensex','s&p bse sensex']};
@@ -355,7 +357,7 @@ async function trendKotak(){
         if(!cache||cache.day!==today()||cache.tok!==tok||!cache.d||!cache.w)cache={day:today(),tok,d:await get('D',2,170),w:await get('W',3,170)};
         try{localStorage.setItem(ckey,JSON.stringify(cache))}catch{}
         const h=await get('60min',1,44);
-        TR.h=tf(h.slice(-300),'H');TR.d=tf(cache.d,'D');TR.w=tf(cache.w,'D');
+        TR.h=tf(h.slice(-300),'H');TR.d=tf(cache.d,'D');TR.w=tf(cache.w,'D');TR.rv=rvol(cache.d);
         TR.ok=!!(TR.d&&TR.w);TR.src='Kotak';TR.err=TR.ok?'':'not enough candles returned';TR.n=cache.d.length;
         if(TR.ok){try{localStorage.setItem('os_it_'+sym,tok)}catch{}}
         done=true;break
@@ -379,7 +381,7 @@ async function trendYahoo(){
   if(trBusy)return;trBusy=true;TR.err='loading candles from Yahoo Finance';
   try{const s=YH[$('sym').value];if(!s)throw new Error('no symbol mapped for this index');
     const h=await yahoo(s,'60m','60d'),d=await yahoo(s,'1d','2y'),w=await yahoo(s,'1wk','5y');
-    TR.h=tf(h.slice(-300),'H');TR.d=tf(d,'D');TR.w=tf(w,'D');TR.ok=!!(TR.d&&TR.w);TR.src='Yahoo Finance, unofficial';TR.err=TR.ok?'':'not enough candles from Yahoo'
+    TR.h=tf(h.slice(-300),'H');TR.d=tf(d,'D');TR.w=tf(w,'D');TR.rv=rvol(d);TR.ok=!!(TR.d&&TR.w);TR.src='Yahoo Finance, unofficial';TR.err=TR.ok?'':'not enough candles from Yahoo'
   }catch(e){TR.ok=false;TR.err='Yahoo: '+String(e.message||e)}finally{trBusy=false}
   if(ST&&$('sc')&&ST.spec!==undefined)drawStrat()
 }
@@ -387,7 +389,7 @@ async function loadTrend(){
   if(S.demo||!S.base||trBusy)return;
   if(!S.histBad){await trendKotak();
     if(TR.ok||/429|rate limit|too many|loading|so far/i.test(TR.err||''))return;
-    S.histBad=true}
+    S.kerr=String(TR.err||'').slice(0,200);S.histBad=true}
   await trendYahoo()
 }
 function parseFII(t){
@@ -454,6 +456,33 @@ function modelStats(legs,q,spot){
   if(pay(legs,Math.exp(lo))>0)pop+=NCDF((lo-mu)/sd);if(pay(legs,Math.exp(hi))>0)pop+=1-NCDF((hi-mu)/sd);
   return{pop,sig,days:T*365,move:F*sd,F}
 }
+function atmIV(){
+  const e=+$('exp').value,T=e>1e9?Math.max((e+36000-Date.now()/1000)/31557600,1/(365*24)):7/365,F=parity(ST.rows)||ST.spot,A=ST.A,r=ST.rows.find(x=>x.k===A.atm);
+  const a=[impVol(r.ce.ltp,F,A.atm,T,true),impVol(r.pe.ltp,F,A.atm,T,false)].filter(x=>x!=null);
+  return a.length?a.reduce((x,y)=>x+y,0)/a.length:null
+}
+function volSignal(){const iv=atmIV();if(!iv||!TR.rv)return null;const ratio=iv/TR.rv;return{iv,rv:TR.rv,ratio,label:ratio>=1.15?'rich':ratio<=0.85?'cheap':'fair'}}
+function suggest(D,V){
+  const cheap=V&&V.label==='cheap',rich=V&&V.label==='rich',vt='';
+  if(D.call==='Bullish')return{view:'Bullish',strat:cheap?'Bull call spread':'Bull put spread',why:'Direction is bullish.'+vt+(cheap?' Cheap options favour paying a debit spread.':' A credit spread collects the premium.')};
+  if(D.call==='Bearish')return{view:'Bearish',strat:cheap?'Bear put spread':'Bear call spread',why:'Direction is bearish.'+vt+(cheap?' Cheap options favour paying a debit spread.':' A credit spread collects the premium.')};
+  if(rich)return{view:'Neutral',strat:'Iron condor',why:'No clear direction, and options are priced above recent realised moves, so selling premium within the OI walls has an edge.'+vt};
+  if(cheap)return{view:'Volatile',strat:'Long straddle',why:'No clear direction, and options are cheap against recent realised moves, so buying volatility has an edge.'+vt};
+  return null
+}
+function sigBlock(v,D,V){
+  const g=ST.sugg=suggest(D,V),dc=D.call==='Bullish'?'buy':D.call==='Bearish'?'sell':'';
+  let m;if(!g)m='No clear edge from direction or volatility. Staying out is a valid result.';
+  else if(v===g.view)m='<b class="buy">Your view matches the signal.</b>';
+  else m='<b class="sell">Your view is not what the signal suggests.</b>';
+  return `<div style="margin-top:8px"><small>SIGNAL (${HZ})</small>
+  <div class="leg"><span>Direction <small>${D.why.length?D.why[0]:'option signals agree with the trend'}</small></span><b class="${dc}">${D.call}</b></div>
+  <div class="leg"><span>Volatility <small>${V?'ATM IV '+(V.iv*100).toFixed(1)+'% vs 20-day realised '+(V.rv*100).toFixed(1)+'%':'waiting for daily candles'}</small></span><b>${V?V.label:'-'}</b></div>
+  <p style="margin:8px 0 0">${g?`Suggested: <b>${g.strat}</b> (${g.view} view). <small>${g.why}</small>`:''} ${m}</p>
+  ${g&&(v!==g.view||$('strat').value!==g.strat)?`<button class="alt" onclick="useSugg()">Use ${g.strat}</button>`:''}
+  <p class="sub" style="margin:6px 0 0">Heuristics from open interest, daily and hourly trend, and implied versus realised volatility. They do not predict the market reliably.</p></div>`
+}
+function useSugg(){const g=ST&&ST.sugg;if(!g)return;$('view').value=g.view;chips('view');if($('view').onchange)$('view').onchange();$('strat').value=g.strat;onStrat()}
 function legGk(x,F,T,sig0){
   if(x.t==='FUT')return{iv:null,delta:1};
   const call=x.t==='CE',iv=impVol(x.p,F,x.k,T,call),s=iv||sig0,sd=s*Math.sqrt(T),d1=(Math.log(F/x.k)+0.5*sd*sd)/sd,df=Math.exp(-RF*T);
@@ -479,7 +508,7 @@ function direction(){
 function dirHtml(d){
   const cls=d.call==='Bullish'?'buy':d.call==='Bearish'?'sell':'',row=(n,v,t)=>`<div class="leg"><span>${n} <small>${t}</small></span><b class="${v>0?'buy':v<0?'sell':''}">${v==null?'waiting':v>0?'Bullish':v<0?'Bearish':'Neutral'}</b></div>`;
   return `<div style="margin-top:8px"><small>OPTION DATA (${d.opt})</small>${d.sig.map(x=>row(x.n,x.v,x.t)).join('')}
-  <small>TREND (candles${TR.src?' · '+TR.src:''})</small>${d.trend.map(x=>row(x.n,x.v,x.t)).join('')}
+  <small>TREND (candles${TR.src?' · '+TR.src:''})</small>${S.kerr&&/Yahoo/.test(TR.src||'')?`<small style="display:block;color:var(--bad)">Kotak history failed: ${String(S.kerr).replace(/</g,'&lt;')}</small>`:''}${d.trend.map(x=>row(x.n,x.v,x.t)).join('')}
   <small>FII POSITIONING</small>${d.fii?row('FII futures',d.fii.v,d.fii.t):''}</div>
   <p style="margin:8px 0 0">Signal (${d.hz}): <b class="${cls}">${d.call}</b></p>
   ${d.why.length?`<p class="sub" style="margin:4px 0 0">${d.why.join(' ')}</p>`:''}
@@ -487,7 +516,7 @@ function dirHtml(d){
 }
 function drawStrat(){
   const{rows,spot,A,bias}=ST,v=$('view').value,name=$('strat').value,{l:lots,q}=qtyNow(),fv=v==='Futures + hedge';
-  const D=fv&&!ST.err?direction():null,dh=D?dirHtml(D):'',chg=D&&/^Auto/.test(name)&&ST.specDir!==D.call?`<p class="warn">Signal is now ${D.call}. Legs switch automatically if it holds for ${HZ==='Swing'?'30':'5'} minutes.</p>`:'';
+  const D=fv&&!ST.err?direction():null,SG=!fv?sigBlock(v,direction(),volSignal()):'',dh=D?dirHtml(D):'',chg=D&&/^Auto/.test(name)&&ST.specDir!==D.call?`<p class="warn">Signal is now ${D.call}. Legs switch automatically if it holds for ${HZ==='Swing'?'30':'5'} minutes.</p>`:'';
   if(!ST.spec||!ST.spec.length){ST.legs=[];ST.mg=null;
     $('sc').innerHTML=(ST.flip?`<p class="warn">${ST.flip}</p>`:'')+dh+chg+`<p class="sub" style="margin-top:8px">${ST.err||'No trade: the option-data signals do not agree strongly enough. Staying out is a valid result.'}</p>`;$('mg').innerHTML='';return}
   const legs=ST.legs=ST.spec.map(([d,k,t])=>{
@@ -496,12 +525,11 @@ function drawStrat(){
   const net=legs.filter(x=>x.t!=='FUT').reduce((t,x)=>t+(x.d==='SELL'?x.p:-x.p),0),P=profile(legs),em=A.straddle;
   let MS=null;try{MS=modelStats(legs,q,spot)}catch{}
   const GK=MS?legs.map(x=>legGk(x,MS.F,MS.days/365,MS.sig)):null,nd=GK?legs.reduce((t,x,i)=>t+(x.d==='BUY'?1:-1)*GK[i].delta,0):null;
-  const fit=fv?'':v==='Volatile'?`ATM straddle implies a move of about ±${em.toFixed(0)} (${(em/spot*100).toFixed(1)}%); this pays off only if the move is larger.`:
-    v===bias?`Matches the current OI lean (PCR ${A.pcr.toFixed(2)}).`:`Goes against the current OI lean (${bias}, PCR ${A.pcr.toFixed(2)}). Treat with caution.`;
+  const fit=v==='Volatile'?`ATM straddle implies a move of about ±${em.toFixed(0)} (${(em/spot*100).toFixed(1)}%); this pays off only if the move is larger.`:'';
   let fn='';const f=legs.find(x=>x.t==='FUT'),h=legs.find(x=>x.t!=='FUT');
   if(f&&h){const lg=f.d==='BUY',tg=lg?A.cw:A.pw,gain=(lg?tg-f.k:f.k-tg)-h.p,loss=-P.mn;
     fn=`<p class="sub" style="margin-top:8px">${lg?'Long':'Short'} future at ${f.k.toFixed(1)} with a ${h.k} ${h.t} hedge (cost ${h.p.toFixed(1)}). Target ${tg} (OI ${lg?'resistance':'support'}): ${inr(gain*q)}; worst case ${inr(loss*q)}; reward:risk ${loss>0?(gain/loss).toFixed(1):'-'}. Consider exiting the future if spot closes beyond the hedge strike ${h.k}. Profit beyond the target is not capped.</p>`}
-  $('sc').innerHTML=(ST.flip?`<p class="warn">${ST.flip}</p>`:'')+dh+chg+(fit?`<p class="sub" style="margin-top:8px">${fit}</p>`:'')+
+  $('sc').innerHTML=(ST.flip?`<p class="warn">${ST.flip}</p>`:'')+SG+dh+chg+(fit?`<p class="sub" style="margin-top:8px">${fit}</p>`:'')+
   legs.map((x,i)=>`<div class="leg"><span class="${x.d==='BUY'?'buy':'sell'}">${lbl(x)}${GK?`<br><small>${GK[i].iv?'IV '+(GK[i].iv*100).toFixed(1)+'% · ':''}Δ ${GK[i].delta>=0?'+':''}${GK[i].delta.toFixed(2)}</small>`:''}</span><span>${x.p.toFixed(2)}</span></div>`).join('')+
   `<div class="kv" style="margin-top:8px"><div><span>Net ${net>=0?'credit':'debit'} (${lots} lot${lots>1?'s':''} × ${LOT[$('sym').value]} = ${q} qty)</span><b>${inr(Math.abs(net)*q)}</b></div>
   <div><span>Max profit</span><b>${fv?'Uncapped':inr(P.mx*q)}</b></div><div><span>Max loss</span><b>${inr(-P.mn*q)}</b></div>
