@@ -345,7 +345,7 @@ async function trendKotak(){
   if(S.demo||trBusy||!S.base)return;trBusy=true;
   try{
     const sym=$('sym').value,seg=IDX[sym].seg.replace('_fo','_cm'),DAY=864e5,end=new Date(),d0=n=>ymd(new Date(+end-n*DAY)),ckey='os_tr_'+sym;
-    const toks=[...new Set([await idxToken(sym),IDXTOK[sym]])];let lastErr='',done=false;
+    const nm=[...new Set(IDX[sym].spot.map(x=>x.split('|')[1]).flatMap(n=>[n,n.toUpperCase()]))],toks=[...new Set([await idxToken(sym),...nm,IDXTOK[sym]])];let lastErr='',done=false;
     for(const tok of toks){
       try{
         const neo=seg+'|'+tok;
@@ -361,7 +361,7 @@ async function trendKotak(){
         TR.ok=!!(TR.d&&TR.w);TR.src='Kotak';TR.err=TR.ok?'':'not enough candles returned';TR.n=cache.d.length;
         if(TR.ok){try{localStorage.setItem('os_it_'+sym,tok)}catch{}}
         done=true;break
-      }catch(e){lastErr=String(e.message||e);if(/\b429\b|rate limit|too many/i.test(lastErr))throw e}
+      }catch(e){lastErr=String(e.message||e);if(/\b429\b|rate limit|too many/i.test(lastErr))throw e;await sleep(1300)}
     }
     if(!done)throw new Error(lastErr||'history failed')
   }catch(e){TR.ok=false;TR.err=String(e.message||e);if(/429|rate limit|too many/i.test(TR.err)){TR.err='Kotak rate limit hit; retrying in 1 minute';TR.retry=true}}finally{trBusy=false}
