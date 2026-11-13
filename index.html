@@ -97,6 +97,9 @@ td.c i{right:0;background:var(--ce)}td.p i{left:0;background:var(--pe)}
     <button class="alt" id="load">⟳ Refresh</button>
     <button class="alt" id="fundsb">₹ Funds</button>
    </div>
+   <div class="row">
+    <button class="alt" id="logoutb">⏻ Log out</button>
+   </div>
    <p id="funds" class="sub" style="margin:10px 0 0"></p>
    <p id="wsst" class="sub" style="margin:4px 0 0"></p>
    <p id="err2" class="warn"></p>
@@ -150,23 +153,17 @@ const Kotak={
       out.push(...(Array.isArray(r)?r:(r.data||[])));
     }return out
   },
-  async hist(sym,interval,from,to){
-    const U=S.base+'/market-data/1.0/historical/details',qs=o=>Object.entries(o).map(([k,v])=>k+'='+encodeURIComponent(v)).join('&');
-    const hs=[this.H(),{Authorization:S.ck,Auth:S.tok,Sid:S.sid,'neo-fin-key':'neotradeapi'}];
-    const ep=d=>Math.floor(Date.parse(d+'T00:00:00+05:30')/1000);
-    const ps=[{neosymbol:sym,interval,from_date:from,to_date:to},{neosymbol:sym,interval,from,to},{symbol:sym,interval,from_date:from,to_date:to},
-      {neosymbol:sym,interval,fromDate:from,toDate:to},{neosymbol:sym,interval,start_date:from,end_date:to},
-      {neosymbol:sym,interval,from:ep(from),to:ep(to)+86399},{neosymbol:sym,interval,from_date:ep(from),to_date:ep(to)+86399},{neosymbol:sym,interval,start:from,end:to}];
-    const wait=ms=>new Promise(r=>setTimeout(r,ms)),lim=m=>/429|rate limit|too many/i.test(m);
+  async hist(neo,interval,from,to){
+    const U=S.base+'/market-data/1.0/historical/details?neosymbol='+encodeURIComponent(neo)+'&fromdate='+from+'&todate='+to+'&interval='+interval,
+      H={Authorization:S.ck,'Content-Type':'application/json'};
     let last='';
-    for(const hi of (S.hh!=null?[S.hh]:[0]))for(const pi of (S.hp!=null?[S.hp]:[0,1,2,3,4,5,6,7])){
-      for(let n=0;n<4;n++){
-        const gap=1600-(Date.now()-(S.hl||0));if(gap>0)await wait(gap);S.hl=Date.now();
-        try{const r=await http('GET',U+'?'+qs(ps[pi]),hs[hi]),c=r&&((r.data&&r.data.candles)||r.candles);
-          if(Array.isArray(c)){S.hh=hi;S.hp=pi;return c}last=JSON.stringify(r).slice(0,160);break}
-        catch(e){last=String(e.message||e).slice(0,160);if(/no data|not available|not yet opened/i.test(last)){S.hh=hi;S.hp=pi;return[]}if(lim(last)){await wait(3000*Math.pow(2,n));continue}break}}
-      if(lim(last))throw new Error('history: '+last)}
-    throw new Error('history: '+(last||'no candles'))
+    for(let t=0;t<5;t++){
+      try{const r=await http('GET',U,H),c=r&&((r.data&&r.data.candles)||r.candles);if(Array.isArray(c))return c;last=JSON.stringify(r).slice(0,160)}
+      catch(e){last=String(e.message||e).slice(0,160);
+        if(/no data|not available|not yet opened/i.test(last))return[];
+        if(/\b429\b|rate limit|too many/i.test(last)){await sleep(3000*(t+1));continue}
+        break}}
+    throw new Error('history: '+last)
   },
   limits(){return http('POST',S.base+'/quick/user/limits'+sid(),this.TH(),{jData:JSON.stringify({seg:'ALL',exch:'ALL',prod:'ALL'})})},
   order(o){return http('POST',S.base+'/quick/order/rule/ms/place'+sid(),this.TH(),{jData:JSON.stringify(o)})},
@@ -308,6 +305,7 @@ function setSpec(){
 function qtyNow(){const l=Math.max(1,Math.floor(+$('lots').value||1));return{l,q:l*(LOT[$('sym').value]||1)}}
 let HZ='Intraday';try{HZ=localStorage.getItem('os_hz')||'Intraday'}catch{}
 const TR={ok:false,err:'loading candles…'},FII={ok:false,err:'loading…'};
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const ymd=d=>d.toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'});
 function ema(c,n){const k=2/(n+1);let e=c[0];const o=[e];for(let i=1;i<c.length;i++){e=c[i]*k+e*(1-k);o.push(e)}return o}
 function rsi(c,n=14){if(c.length<n+1)return null;let g=0,l=0;for(let i=1;i<=n;i++){const d=c[i]-c[i-1];d>=0?g+=d:l-=d}g/=n;l/=n;
@@ -329,26 +327,43 @@ function tf(bars,kind){
   return{v,rsi:r,e20,e50,last,ob:r>70,os:r<30,n:c.length}
 }
 let trBusy=false;
+const IDXTOK={NIFTY:'26000',BANKNIFTY:'26009',FINNIFTY:'26037',MIDCPNIFTY:'26074',SENSEX:'1'};
+const IDXNAMES={NIFTY:['nifty 50'],BANKNIFTY:['nifty bank'],FINNIFTY:['nifty fin service'],MIDCPNIFTY:['nifty midcap select','nifty mid select'],SENSEX:['sensex','s&p bse sensex']};
+async function idxToken(sym){
+  try{const c=localStorage.getItem('os_it_'+sym);if(c)return c}catch{}
+  try{const seg=sym==='SENSEX'?'bse_cm':'nse_cm';if(!M[seg])M[seg]=await Kotak.master(seg);
+    const a=cols(M[seg]),names=IDXNAMES[sym];
+    for(let i=1;i<a.L.length;i++){const c=a.L[i].split(',');if(c.length<a.h.length-1)continue;
+      const nm=String(c[a.name]||'').trim().toLowerCase(),ts=String(a.ts>=0?c[a.ts]:'').trim().toLowerCase();
+      if(names.includes(nm)||names.includes(ts))return String(c[a.tok]).trim()}
+  }catch{}
+  return IDXTOK[sym]
+}
 async function trendKotak(){
-  if(S.demo||trBusy||!S.base)return;trBusy=true;if(!TR.ok)TR.err='loading candles (the first load takes about a minute)';
-  const sym=$('sym').value,spot=S.spotSym||IDX[sym].spot[0],key='os_c30_'+sym,DAY=864e5,end=new Date();
-  let bars=[];try{bars=JSON.parse(localStorage.getItem(key)||'[]')}catch{}
-  const merge=g=>{const m=new Map();bars.concat(g).forEach(b=>m.set(b.t,b));
-    bars=[...m.values()].sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:Number(a.t)-Number(b.t)||(a.t<b.t?-1:1)).slice(-4600);
-    try{localStorage.setItem(key,JSON.stringify(bars))}catch{}};
-  const calc=()=>{TR.h=tf(hourly(bars.slice(-300)),'H');TR.d=tf(grp(bars,b=>b.d),'D');TR.w=tf(grp(bars,wk),'D');TR.n=bars.length;
-    TR.ok=!!TR.d;TR.src='Kotak';TR.err=TR.ok?'':'only '+bars.length+' candles so far'};
+  if(S.demo||trBusy||!S.base)return;trBusy=true;
   try{
-    const ranges=[];
-    if(bars.length)ranges.push([new Date(Date.parse(bars[bars.length-1].d)-3*DAY),end]);
-    let cur=bars.length?Date.parse(bars[0].d)-DAY:+end;const stop=+end-300*DAY;
-    while(cur>stop){ranges.push([new Date(cur-29*DAY),new Date(cur)]);cur-=30*DAY}
-    if(bars.length)calc();
-    for(const [a,b] of ranges){
-      const rows=await Kotak.hist(spot,'30min',ymd(a),ymd(b));
-      merge(rows.map(candle).filter(x=>x.c>0));calc();
-      if(ST&&$('sc')&&ST.spec!==undefined)drawStrat()}
-  }catch(e){TR.err=String(e.message||e);if(/429|rate limit|too many/i.test(TR.err)){TR.err='Kotak rate limit hit; retrying in 1 minute (the chain refresh is paused while history loads)';setTimeout(loadTrend,60000)}}finally{trBusy=false}
+    const sym=$('sym').value,seg=IDX[sym].seg.replace('_fo','_cm'),DAY=864e5,end=new Date(),d0=n=>ymd(new Date(+end-n*DAY)),ckey='os_tr_'+sym;
+    const toks=[...new Set([await idxToken(sym),IDXTOK[sym]])];let lastErr='',done=false;
+    for(const tok of toks){
+      try{
+        const neo=seg+'|'+tok;
+        const get=async(iv,chunks,span)=>{let out=[];
+          for(let i=0;i<chunks;i++){const to=d0(i*(span+1)),from=d0(i*(span+1)+span);
+            out=(await Kotak.hist(neo,iv,from,to)).map(candle).filter(x=>x.c>0).concat(out);await sleep(1300)}
+          const m=new Map();out.forEach(b=>m.set(b.t,b));return[...m.values()].sort((a,b)=>a.t<b.t?-1:a.t>b.t?1:0)};
+        let cache=null;try{cache=JSON.parse(localStorage.getItem(ckey)||'null')}catch{}
+        if(!cache||cache.day!==today()||cache.tok!==tok||!cache.d||!cache.w)cache={day:today(),tok,d:await get('D',2,170),w:await get('W',3,170)};
+        try{localStorage.setItem(ckey,JSON.stringify(cache))}catch{}
+        const h=await get('60min',1,44);
+        TR.h=tf(h.slice(-300),'H');TR.d=tf(cache.d,'D');TR.w=tf(cache.w,'D');
+        TR.ok=!!(TR.d&&TR.w);TR.src='Kotak';TR.err=TR.ok?'':'not enough candles returned';TR.n=cache.d.length;
+        if(TR.ok){try{localStorage.setItem('os_it_'+sym,tok)}catch{}}
+        done=true;break
+      }catch(e){lastErr=String(e.message||e);if(/\b429\b|rate limit|too many/i.test(lastErr))throw e}
+    }
+    if(!done)throw new Error(lastErr||'history failed')
+  }catch(e){TR.ok=false;TR.err=String(e.message||e);if(/429|rate limit|too many/i.test(TR.err)){TR.err='Kotak rate limit hit; retrying in 1 minute';TR.retry=true}}finally{trBusy=false}
+  if(TR.retry){TR.retry=false;setTimeout(loadTrend,60000)}
   if(ST&&$('sc')&&ST.spec!==undefined)drawStrat()
 }
 const YH={NIFTY:'^NSEI',BANKNIFTY:'^NSEBANK',SENSEX:'^BSESN',FINNIFTY:'NIFTY_FIN_SERVICE.NS',MIDCPNIFTY:'NIFTY_MID_SELECT.NS'};
@@ -410,7 +425,12 @@ function finalDir(D){
     else{
       if(w>0&&d>0){if(D.opt==='Bearish')why.push('Weekly and daily trends are up but option signals are bearish.');else if(T.h&&T.h.ob)why.push('Hourly RSI is overbought; waiting for a pullback.');else call='Bullish'}
       else if(w<0&&d<0){if(D.opt==='Bullish')why.push('Weekly and daily trends are down but option signals are bullish.');else if(T.h&&T.h.os)why.push('Hourly RSI is oversold; waiting for a bounce.');else call='Bearish'}
-      else why.push('Weekly and daily trends do not agree.')}}
+      else why.push('Weekly and daily trends do not agree.')}
+    if(call==='Bullish'&&T.d.rsi>75){call='No trade';why.push('Daily RSI '+T.d.rsi.toFixed(0)+' is above 75 (overbought), so no new long.')}
+    if(call==='Bearish'&&T.d.rsi<25){call='No trade';why.push('Daily RSI '+T.d.rsi.toFixed(0)+' is below 25 (oversold), so no new short.')}
+    if(HZ==='Intraday'&&T.h){
+      if(call==='Bullish'&&T.h.rsi>70){call='No trade';why.push('Hourly RSI '+T.h.rsi.toFixed(0)+' is above 70 (overbought), so no new long.')}
+      if(call==='Bearish'&&T.h.rsi<30){call='No trade';why.push('Hourly RSI '+T.h.rsi.toFixed(0)+' is below 30 (oversold), so no new short.')}}}
   if(FII.ok&&FII.cur){const r=FII.cur.ratio,fv=r>=0.55?1:r<=0.45?-1:0,pr=FII.prev?FII.prev.ratio:null;
     D.fii={v:fv,t:`index futures long ${(r*100).toFixed(0)}% (net ${FII.cur.fl-FII.cur.fs>=0?'+':''}${n0(FII.cur.fl-FII.cur.fs)}${pr!=null?', '+(r>=pr?'up':'down')+' from '+(pr*100).toFixed(0)+'% the day before':''}), mostly hedging, used only in Swing`};
     if(HZ==='Swing'&&call==='Bullish'&&fv<0){call='No trade';why.push('FII index-futures positioning is short-heavy.')}
@@ -463,7 +483,7 @@ function dirHtml(d){
   <small>FII POSITIONING</small>${d.fii?row('FII futures',d.fii.v,d.fii.t):''}</div>
   <p style="margin:8px 0 0">Signal (${d.hz}): <b class="${cls}">${d.call}</b></p>
   ${d.why.length?`<p class="sub" style="margin:4px 0 0">${d.why.join(' ')}</p>`:''}
-  <p class="sub" style="margin:4px 0 0">${d.hz==='Intraday'?'Intraday: option signals must agree with the hourly and daily trend.':'Swing: weekly and daily trends must agree, and option signals must not oppose them.'} These are heuristics and do not predict the market reliably; the screen stays out when they disagree.</p>`
+  <p class="sub" style="margin:4px 0 0">${d.hz==='Intraday'?'Intraday: option signals must agree with the hourly and daily trend.':'Swing: weekly and daily trends must agree, and option signals must not oppose them.'} Daily RSI above 75 blocks new longs and below 25 blocks new shorts. These are heuristics and do not predict the market reliably; the screen stays out when they disagree.</p>`
 }
 function drawStrat(){
   const{rows,spot,A,bias}=ST,v=$('view').value,name=$('strat').value,{l:lots,q}=qtyNow(),fv=v==='Futures + hedge';
@@ -675,12 +695,12 @@ function demo(){
                pe:{oi:Math.max(2e4,(i<=0?1.1e6:3e5)*Math.exp(-((i+4)**2)/30)*(1+(i%2)/7)),ltp:Math.max(1,k-spot+110-d*4)}})}
   return{spot,rows,fut:{ltp:spot+22,ts:'NIFTY FUT'}}
 }
-const fail=e=>{$('err').textContent=$('err2').textContent=String(e.message||e)};
+const fail=e=>{const m=String(e.message||e);if(S.base&&S.tok&&/^\s*401\b|unauthori[sz]ed|invalid (token|session)|session (expired|invalid)/i.test(m)){sessionExpired();return}$('err').textContent=$('err2').textContent=m};
 $('demo').onclick=()=>{S.demo=true;Object.assign(TR,{ok:true,err:'',h:{v:1,rsi:58,e20:24480,e50:null,last:24510,ob:false,os:false},d:{v:1,rsi:61,e20:24300,e50:24100,last:24510,ob:false,os:false},w:{v:1,rsi:57,e20:24000,e50:null,last:24510,ob:false,os:false}});Object.assign(FII,{ok:true,err:'',cur:{fl:90000,fs:100000,ratio:0.47},prev:{fl:92000,fs:98000,ratio:0.48}});$('login').classList.add('hide');const d=demo();show(d.rows,d.spot,'Demo data.',false,false,d.fut)};
 $('go').onclick=async()=>{
   try{$('err').textContent='';S.ck=$('ck').value.trim();S.ucc=$('ucc').value.trim();S.mob=$('mob').value.trim();
     ['ck','ucc','mob'].forEach(i=>localStorage.setItem('os_'+i,$(i).value.trim()));
-    $('go').textContent='Connecting…';await Kotak.login();
+    $('go').textContent='Connecting…';await Kotak.login();saveSess();$('totp').value='';$('mpin').value='';
     $('login').classList.add('hide');$('ctl').classList.remove('hide');await switchIdx()
   }catch(e){fail(e)}finally{$('go').textContent='Log in'}
 };
@@ -727,6 +747,24 @@ async function load(auto){
   }catch(e){fail(e)}finally{busy=false}
 }
 chips('sym');chips('mode');
+function saveSess(){try{localStorage.setItem('os_sess',JSON.stringify({d:today(),base:S.base,tok:S.tok,sid:S.sid,feed:S.feed,hs:S.hs}))}catch{}}
+function dropSess(){try{localStorage.removeItem('os_sess')}catch{}}
+function resetUi(msg){
+  clearInterval(TM);clearInterval(trT);wsStop();ST=null;
+  ['base','tok','sid','feed','hs','histBad','hh','hp'].forEach(k=>{delete S[k]});
+  $('ctl').classList.add('hide');$('out').innerHTML='';$('login').classList.remove('hide');$('err').textContent=msg||'';$('totp').value='';$('mpin').value=''
+}
+function sessionExpired(){dropSess();resetUi('Session expired. Please log in again.')}
+function logout(){dropSess();resetUi('Logged out.')}
+async function restoreSession(){
+  let j=null;try{j=JSON.parse(localStorage.getItem('os_sess')||'null')}catch{}
+  if(!j)return;if(j.d!==today()||!j.base||!j.tok){dropSess();return}
+  S.ck=$('ck').value.trim();S.ucc=$('ucc').value.trim();S.mob=$('mob').value.trim();if(!S.ck)return;
+  Object.assign(S,{base:j.base,tok:j.tok,sid:j.sid,feed:j.feed,hs:j.hs});
+  $('login').classList.add('hide');$('ctl').classList.remove('hide');await switchIdx()
+}
+$('logoutb').onclick=logout;
+try{restoreSession()}catch(e){fail(e)}
 </script>
  </body>
 </html>
