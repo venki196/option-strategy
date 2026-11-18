@@ -54,9 +54,24 @@ td.c i{right:0;background:var(--ce)}td.p i{left:0;background:var(--pe)}
 .res{white-space:pre-wrap;font:12px/1.4 ui-monospace,monospace;background:var(--tile);border-radius:12px;padding:10px;margin-top:10px}
 .chk{display:flex;gap:8px;align-items:center;margin:12px 0 0;font-size:14px;color:var(--ink);text-transform:none;letter-spacing:0;font-weight:500}.chk input{width:auto}
 .pfr{border-top:1px solid var(--line);padding:10px 0}.pfr:first-child{border-top:0}.pfr .t{display:flex;justify-content:space-between;gap:8px;font-weight:600}.pfr .s{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;color:var(--mut);margin-top:3px}
+#toast{position:fixed;top:calc(env(safe-area-inset-top) + 8px);left:10px;right:10px;z-index:900;background:var(--acc);color:#fff;border-radius:14px;padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.4);font-size:14px}
+#toast.hide,#lock.hide{display:none}
+#lock{position:fixed;inset:0;z-index:1000;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:20px}#lock .card{width:100%;max-width:380px}
+.chart{margin-top:10px;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:6px}.chart svg{width:100%;height:auto;display:block}
+.chart text{fill:var(--mut);font:10px system-ui,sans-serif}
 </style>
  </head>
  <body>
+  <div id="toast" class="hide" onclick="this.classList.add('hide')"></div>
+  <div id="lock" class="hide">
+   <div class="card">
+    <h2>Locked</h2>
+    <label style="margin-top:0">PIN</label><input id="lpin" type="password" inputmode="numeric" maxlength="8" autocomplete="off">
+    <button id="lgo">Unlock</button>
+    <p id="lerr" class="warn"></p>
+    <button class="danger" id="lforgot">Forgot PIN: reset and log out</button>
+   </div>
+  </div>
   <div class="hero">
    <div class="brand">
     Kotak Neo <b>Options</b>
@@ -100,11 +115,92 @@ td.c i{right:0;background:var(--ce)}td.p i{left:0;background:var(--pe)}
    </div>
    <div class="row">
     <button class="alt" id="pfb">▦ Portfolio</button>
+    <button class="alt" id="scnb">◎ Scanner</button>
+   </div>
+   <div class="row">
+    <button class="alt" id="btb">↺ Backtest</button>
+    <button class="alt" id="stb">⚙ Settings</button>
+   </div>
+   <div class="row">
     <button class="alt" id="logoutb">⏻ Log out</button>
    </div>
    <p id="funds" class="sub" style="margin:10px 0 0"></p>
    <p id="wsst" class="sub" style="margin:4px 0 0"></p>
    <p id="err2" class="warn"></p>
+  </div>
+  <div id="stg" class="hide">
+   <div class="card">
+    <div class="row">
+     <button class="alt" id="stback">← Back</button>
+    </div>
+   </div>
+   <div class="card">
+    <h2>App lock</h2>
+    <p class="sub" id="lkst"></p>
+    <label style="margin-top:0">New PIN (4 to 8 digits)</label><input id="npin" type="password" inputmode="numeric" maxlength="8" autocomplete="off">
+    <div class="row">
+     <button id="setpin">Set / change PIN</button>
+     <button class="danger" id="rmpin">Remove PIN</button>
+    </div>
+    <label>Lock after leaving the app for</label><select id="lmin"><option value="0">Immediately</option><option value="1">1 minute</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="60">1 hour</option></select>
+    <p class="sub" style="margin:8px 0 0">The PIN hides the screen. It is not encryption, and fingerprint unlock needs a native plugin that this build does not include.</p>
+   </div>
+   <div class="card">
+    <h2>Alerts</h2>
+    <label class="chk"><input type="checkbox" id="al_on"> Alerts on</label><label class="chk"><input type="checkbox" id="al_sig"> Signal changes</label> <label class="chk"><input type="checkbox" id="al_be"> Spot near a breakeven</label><label>Within (index points)</label><input id="al_bd" inputmode="numeric"> <label class="chk"><input type="checkbox" id="al_pnl"> Paper trade target and stop</label>
+    <div class="row">
+     <div>
+      <label>Target (₹)</label><input id="al_tp" inputmode="numeric">
+     </div>
+     <div>
+      <label>Stop (₹)</label><input id="al_sl" inputmode="numeric">
+     </div>
+    </div>
+    <button class="alt" id="al_test">Send a test alert</button>
+    <p class="sub" style="margin:8px 0 0">Alerts appear as a banner with a beep and vibration while the app is open. System notifications work only if the notification plugin is in your build.</p>
+   </div>
+   <div class="card">
+    <h2>Position sizing</h2>
+    <div class="row">
+     <div>
+      <label style="margin-top:0">Capital (₹, blank = use available funds)</label><input id="sz_cap" inputmode="numeric">
+     </div>
+     <div>
+      <label style="margin-top:0">Risk per trade (%)</label><input id="sz_risk" inputmode="decimal">
+     </div>
+    </div>
+    <label>Stop for unlimited-risk sells (× credit)</label><input id="sz_stop" inputmode="decimal">
+   </div>
+   <div class="card">
+    <h2>Stored history (on this phone)</h2>
+    <p class="sub">Daily candles (about 6 years) and hourly candles (about 3 years) for each index are saved in the phone's database. Each sync fetches only the missing days, and weekly candles are built from the daily ones. The first sync of an index takes a few minutes because of Kotak's rate limit.</p>
+    <div id="hist_info" class="sub"></div>
+    <div class="row">
+     <button id="hist_sync">⟳ Sync all indices</button>
+     <button class="danger" id="hist_clear">Delete stored history</button>
+    </div>
+    <p id="hist_msg" class="sub" style="white-space:pre-wrap"></p>
+   </div>
+  </div>
+  <div id="scn" class="hide">
+   <div class="card">
+    <div class="row">
+     <button class="alt" id="scback">← Back</button>
+     <button id="scgo">▶ Scan all indices</button>
+    </div>
+    <p class="sub" id="scst" style="margin:10px 0 0">Scans the nearest expiry of each index with a smaller strike window. The first scan makes many calls and can take a couple of minutes.</p>
+   </div>
+   <div class="card" id="sclist"></div>
+  </div>
+  <div id="bt" class="hide">
+   <div class="card">
+    <div class="row">
+     <button class="alt" id="btback">← Back</button>
+     <button id="btgo">▶ Run backtest</button>
+    </div>
+    <p class="sub" id="btst" style="margin:10px 0 0">Tests the Swing trend rule (weekly and daily trend agree, RSI filters) on the selected index over about 3 years of daily candles.</p>
+   </div>
+   <div class="card" id="btout"></div>
   </div>
   <div id="pf" class="hide">
    <div class="card">
@@ -113,7 +209,7 @@ td.c i{right:0;background:var(--ce)}td.p i{left:0;background:var(--pe)}
      <button id="pfref">⟳ Refresh</button>
     </div>
     <div class="chips" id="pftabC" style="margin-top:10px"></div>
-    <select id="pftab" class="sr"><option>Holdings</option><option>Positions</option></select>
+    <select id="pftab" class="sr"><option>Holdings</option><option>Positions</option><option>Risk</option><option>Journal</option></select>
     <div id="pfsum" style="margin-top:10px"></div>
    </div>
    <div class="card" id="pflist"></div>
@@ -258,7 +354,11 @@ let ST=null;
 const n0=v=>Math.round(v).toLocaleString('en-IN'),inr=v=>Math.abs(v)===Infinity?'Unlimited':'₹'+n0(v),tick=p=>(Math.round(p/0.05)*0.05).toFixed(2);
 const tk2=(l,p)=>l.t==='FUT'?(Math.round(p/0.1)*0.1).toFixed(2):tick(p),lbl=x=>x.t==='FUT'?x.d+' FUT':x.d+' '+x.k+' '+x.t,FUTM=0.11;
 const today=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'});
-let SNAP={};try{const j=JSON.parse(localStorage.getItem('os_snap')||'{}');if(j.date===today())SNAP=j.data||{}}catch{}
+let SNAP={},PSNAP={};
+try{const j=JSON.parse(localStorage.getItem('os_snap')||'{}');
+  if(j.date===today())SNAP=j.data||{};
+  else if(j.date&&j.data){const pv={};for(const k in j.data){const a=j.data[k];if(a&&a.length)pv[k]=a[a.length-1]}localStorage.setItem('os_psnap',JSON.stringify({date:j.date,data:pv}))}}catch{}
+try{const pv=JSON.parse(localStorage.getItem('os_psnap')||'{}');if(pv.date&&Date.now()-Date.parse(pv.date+'T12:00:00Z')<6*864e5)PSNAP=pv.data||{}}catch{}
 function snap(){
   const a=SNAP[ST.key]=SNAP[ST.key]||[],n=Date.now();if(a.length&&n-a[a.length-1].t<30000)return;
   const ce={},pe={};ST.rows.forEach(r=>{ce[r.k]=r.ce.oi;pe[r.k]=r.pe.oi});a.push({t:n,ce,pe});while(a.length>120)a.shift();
@@ -297,7 +397,7 @@ function paint(){
   <div><span>Put wall (support)</span><b>${A.pw}</b></div><div><span>Call wall (resistance)</span><b>${A.cw}</b></div></div>
   <p class="sub" style="margin:8px 0 0">OI lean: <b>${bias}</b>. ${ST.note||''}</p>`;
   $('chain').innerHTML=ST.rows.map(r=>`<tr class="${r.k===A.atm?'atm':''}"><td class="c"><i style="width:${r.ce.oi/mx*100}%"></i>${n0(r.ce.oi)}</td><td>${r.ce.ltp.toFixed(1)}</td><td class="k">${r.k}</td><td>${r.pe.ltp.toFixed(1)}</td><td class="p"><i style="width:${r.pe.oi/mx*100}%"></i>${n0(r.pe.oi)}</td></tr>`).join('');
-  snap();paperTick();drawPaper();if($('sc')&&ST.spec!==undefined){drawStrat();
+  snap();paperTick();drawPaper();checkAlerts();if($('sc')&&ST.spec!==undefined){drawStrat();
     if($('view').value==='Futures + hedge'&&/^Auto/.test($('strat').value)&&!ST.err){
       const c=direction().call;
       if(c!==ST.specDir){if(!ST.pend||ST.pend.call!==c)ST.pend={call:c,t:Date.now()};
@@ -362,26 +462,12 @@ async function idxToken(sym){
 async function trendKotak(){
   if(S.demo||trBusy||!S.base)return;trBusy=true;
   try{
-    const sym=$('sym').value,seg=IDX[sym].seg.replace('_fo','_cm'),DAY=864e5,end=new Date(),d0=n=>ymd(new Date(+end-n*DAY)),ckey='os_tr_'+sym;
-    const nm=[...new Set(IDX[sym].spot.map(x=>x.split('|')[1]).flatMap(n=>[n,n.toUpperCase()]))],toks=[...new Set([await idxToken(sym),...nm,IDXTOK[sym]])];let lastErr='',done=false;
-    for(const tok of toks){
-      try{
-        const neo=seg+'|'+tok;
-        const get=async(iv,chunks,span)=>{let out=[];
-          for(let i=0;i<chunks;i++){const to=d0(i*(span+1)),from=d0(i*(span+1)+span);
-            out=(await Kotak.hist(neo,iv,from,to)).map(candle).filter(x=>x.c>0).concat(out);await sleep(1300)}
-          const m=new Map();out.forEach(b=>m.set(b.t,b));return[...m.values()].sort((a,b)=>a.t<b.t?-1:a.t>b.t?1:0)};
-        let cache=null;try{cache=JSON.parse(localStorage.getItem(ckey)||'null')}catch{}
-        if(!cache||cache.day!==today()||cache.tok!==tok||!cache.d||!cache.w)cache={day:today(),tok,d:await get('D',2,170),w:await get('W',3,170)};
-        try{localStorage.setItem(ckey,JSON.stringify(cache))}catch{}
-        const h=await get('60min',1,44);
-        TR.h=tf(h.slice(-300),'H');TR.d=tf(cache.d,'D');TR.w=tf(cache.w,'D');TR.rv=rvol(cache.d);
-        TR.ok=!!(TR.d&&TR.w);TR.src='Kotak';TR.err=TR.ok?'':'not enough candles returned';TR.n=cache.d.length;
-        if(TR.ok){try{localStorage.setItem('os_it_'+sym,tok)}catch{}}
-        done=true;break
-      }catch(e){lastErr=String(e.message||e);if(/\b429\b|rate limit|too many/i.test(lastErr))throw e;await sleep(1300)}
-    }
-    if(!done)throw new Error(lastErr||'history failed')
+    const sym=$('sym').value,prog=n=>{TR.err='syncing '+sym+' history, '+n+' candles so far (first time only)';if(ST&&$('sc')&&ST.spec!==undefined)drawStrat()};let serr='';
+    try{await histSync(sym,'D',false,prog);await histSync(sym,'60min',false,prog)}catch(e){serr=String(e.message||e)}
+    const d=(await histLoad(sym,'D')).bars,h=(await histLoad(sym,'60min')).bars;
+    if(d.length<60)throw new Error(/429|rate limit|too many/i.test(serr)?'Kotak rate limit hit; retrying in 1 minute':(serr||'no stored history yet'));
+    TR.h=tf(h.slice(-300),'H');TR.d=tf(d,'D');TR.w=tf(grp(d,wk),'D');TR.rv=rvol(d);
+    TR.ok=!!(TR.d&&TR.w);TR.src='Kotak, stored on this phone';TR.n=d.length;TR.err=TR.ok?'':'not enough candles';TR.stale=serr
   }catch(e){TR.ok=false;TR.err=String(e.message||e);if(/429|rate limit|too many/i.test(TR.err)){TR.err='Kotak rate limit hit; retrying in 1 minute';TR.retry=true}}finally{trBusy=false}
   if(TR.retry){TR.retry=false;setTimeout(loadTrend,60000)}
   if(ST&&$('sc')&&ST.spec!==undefined)drawStrat()
@@ -474,12 +560,12 @@ function modelStats(legs,q,spot){
   if(pay(legs,Math.exp(lo))>0)pop+=NCDF((lo-mu)/sd);if(pay(legs,Math.exp(hi))>0)pop+=1-NCDF((hi-mu)/sd);
   return{pop,sig,days:T*365,move:F*sd,F}
 }
-function atmIV(){
-  const e=+$('exp').value,T=e>1e9?Math.max((e+36000-Date.now()/1000)/31557600,1/(365*24)):7/365,F=parity(ST.rows)||ST.spot,A=ST.A,r=ST.rows.find(x=>x.k===A.atm);
+function atmIV(ex){
+  const e=ex||+$('exp').value,T=e>1e9?Math.max((e+36000-Date.now()/1000)/31557600,1/(365*24)):7/365,F=parity(ST.rows)||ST.spot,A=ST.A,r=ST.rows.find(x=>x.k===A.atm);
   const a=[impVol(r.ce.ltp,F,A.atm,T,true),impVol(r.pe.ltp,F,A.atm,T,false)].filter(x=>x!=null);
   return a.length?{iv:a.reduce((x,y)=>x+y,0)/a.length,T,F}:null
 }
-function volSignal(){const a=atmIV(),iv=a&&a.iv;if(!iv||!TR.rv)return null;const ratio=iv/TR.rv;return{iv,rv:TR.rv,ratio,label:ratio>=1.15?'rich':ratio<=0.85?'cheap':'fair'}}
+function volSignal(ex){const a=atmIV(ex),iv=a&&a.iv;if(!iv||!TR.rv)return null;const ratio=iv/TR.rv;return{iv,days:a.T*365,rv:TR.rv,ratio,label:ratio>=1.15?'rich':ratio<=0.85?'cheap':'fair'}}
 function suggest(D,V){
   const cheap=V&&V.label==='cheap',rich=V&&V.label==='rich',vt='';
   if(D.call==='Bullish')return{view:'Bullish',strat:cheap?'Bull call spread':'Bull put spread',why:'Direction is bullish.'+vt+(cheap?' Cheap options favour paying a debit spread.':' A credit spread collects the premium.')};
@@ -496,6 +582,7 @@ function sigBlock(v,D,V){
   return `<div style="margin-top:8px"><small>SIGNAL (${HZ})</small>
   <div class="leg"><span>Direction <small>${D.why.length?D.why[0]:'option signals agree with the trend'}</small></span><b class="${dc}">${D.call}</b></div>
   <div class="leg"><span>Volatility <small>${V?'ATM IV '+(V.iv*100).toFixed(1)+'% vs 20-day realised '+(V.rv*100).toFixed(1)+'%':'waiting for daily candles'}</small></span><b>${V?V.label:'-'}</b></div>
+ 
   <p style="margin:8px 0 0">${g?`Suggested: <b>${g.strat}</b> (${g.view} view). <small>${g.why}</small>`:''} ${m}</p>
   ${g&&(v!==g.view||$('strat').value!==g.strat)?`<button class="alt" onclick="useSugg()">Use ${g.strat}</button>`:''}
   <p class="sub" style="margin:6px 0 0">Heuristics from open interest, daily and hourly trend, and implied versus realised volatility. They do not predict the market reliably.</p></div>`
@@ -524,7 +611,7 @@ async function fetchExtra(){
 function hk(c,side){const h=c.hedge;if(h==='wall')return side==='put'?c.pw:c.cw;if(h==='atm')return c.atm;const n=+h||2;return c.sn(side==='put'?c.atm-n*c.s:c.atm+n*c.s)}
 function direction(){
   const A=ST.A,spot=ST.spot,sig=[],arr=SNAP[ST.key]||[],now=Date.now();
-  let bs=arr.find(x=>now-x.t<=1800000&&now-x.t>=300000);if(!bs&&arr[0]&&now-arr[0].t>=300000)bs=arr[0];
+  let bs=arr.find(x=>now-x.t<=1800000&&now-x.t>=300000);if(!bs&&arr[0]&&now-arr[0].t>=300000)bs=arr[0];if(!bs&&PSNAP[ST.key])bs=PSNAP[ST.key];
   sig.push({n:'PCR (OI)',v:A.pcr>=1.2?1:A.pcr<=0.8?-1:0,t:'PCR '+A.pcr.toFixed(2)});
   const md=(A.mp-spot)/spot*100;
   sig.push({n:'Max pain',v:md>=0.25?1:md<=-0.25?-1:0,t:`${A.mp}, ${Math.abs(md).toFixed(2)}% ${md>=0?'above':'below'} spot`});
@@ -533,7 +620,7 @@ function direction(){
   if(bs){let dp=0,dc=0,tot=0;
     ST.rows.forEach(r=>{tot+=r.ce.oi+r.pe.oi;if(r.k<=A.atm&&bs.pe[r.k]!=null)dp+=r.pe.oi-bs.pe[r.k];if(r.k>=A.atm&&bs.ce[r.k]!=null)dc+=r.ce.oi-bs.ce[r.k]});
     const net=tot?(dp-dc)/tot*100:0;
-    sig.push({n:'OI buildup',v:net>=1?1:net<=-1?-1:0,t:`puts at/below ATM ${dp>=0?'+':''}${n0(dp)}, calls at/above ATM ${dc>=0?'+':''}${n0(dc)} over ${Math.round((now-bs.t)/60000)} min`})}
+    sig.push({n:'OI buildup',v:net>=1?1:net<=-1?-1:0,t:`puts at/below ATM ${dp>=0?'+':''}${n0(dp)}, calls at/above ATM ${dc>=0?'+':''}${n0(dc)} ${now-bs.t>43200000?'vs previous session':'over '+Math.round((now-bs.t)/60000)+' min'}`})}
   else sig.push({n:'OI buildup',v:null,t:'collecting OI history (needs 5 minutes of data)'});
   const av=sig.filter(x=>x.v!==null),bull=av.filter(x=>x.v>0).length,bear=av.filter(x=>x.v<0).length;
   return finalDir({sig,bull,bear,n:av.length,opt:bull>=3&&bear===0?'Bullish':bear>=3&&bull===0?'Bearish':'No trade'})
@@ -557,6 +644,7 @@ function drawStrat(){
     const o=(rows.find(r=>r.k===k)||(ST.extra&&ST.extra[k])||{})[t==='CE'?'ce':'pe']||{};return{d,k,t,p:o.ltp||0,bid:o.bid||0,ask:o.ask||0,ts:o.ts,tok:o.tok}});
   const net=legs.filter(x=>x.t!=='FUT').reduce((t,x)=>t+(x.d==='SELL'?x.p:-x.p),0),P=profile(legs),em=A.straddle;
   let MS=null;try{MS=modelStats(legs,q,spot)}catch{}
+  const CH=payoffSvg(legs,q,spot,MS?MS.move:spot*0.02,P);ST.P=P;ST.MS=MS;
   const GK=MS?legs.map(x=>legGk(x,MS.F,MS.days/365,MS.sig)):null,nd=GK?legs.reduce((t,x,i)=>t+(x.d==='BUY'?1:-1)*GK[i].delta,0):null;
   const fit=v==='Volatile'?`ATM straddle implies a move of about ±${em.toFixed(0)} (${(em/spot*100).toFixed(1)}%); this pays off only if the move is larger.`:'';
   let fn='';const f=legs.find(x=>x.t==='FUT'),h=legs.find(x=>x.t!=='FUT');
@@ -566,7 +654,7 @@ function drawStrat(){
   legs.map((x,i)=>`<div class="leg"><span class="${x.d==='BUY'?'buy':'sell'}">${lbl(x)}${GK?`<br><small>${GK[i].iv?'IV '+(GK[i].iv*100).toFixed(1)+'% · ':''}Δ ${GK[i].delta>=0?'+':''}${GK[i].delta.toFixed(2)}</small>`:''}</span><span>${x.p.toFixed(2)}</span></div>`).join('')+
   `<div class="kv" style="margin-top:8px"><div><span>Net ${net>=0?'credit':'debit'} (${lots} lot${lots>1?'s':''} × ${LOT[$('sym').value]} = ${q} qty)</span><b>${inr(Math.abs(net)*q)}</b></div>
   <div><span>Max profit</span><b>${fv?'Uncapped':inr(P.mx*q)}</b></div><div><span>Max loss</span><b>${inr(-P.mn*q)}</b></div>
-  <div><span>Breakeven (distance from spot)</span><b style="font-size:15px">${P.be.map(x=>x.toFixed(0)+' ('+(x>=spot?'+':'')+((x/spot-1)*100).toFixed(2)+'%'+(MS?', '+((x-spot)/MS.move).toFixed(1)+'σ':'')+')').join('<br>')||'-'}</b></div>${MS?`<div><span>Probability of profit (model)</span><b>${(MS.pop*100).toFixed(0)}%</b></div><div><span>1σ range to expiry</span><b style="font-size:15px">${(spot-MS.move).toFixed(0)} – ${(spot+MS.move).toFixed(0)}<br><small>±${MS.move.toFixed(0)} (${(MS.move/spot*100).toFixed(1)}%)</small></b></div><div><span>Net delta (position)</span><b>${nd>=0?'+':''}${nd.toFixed(2)}<br><small>${nd>=0?'gains':'loses'} ₹${Math.abs(nd*q).toFixed(0)} per +1 index point</small></b></div>`:''}</div>${MS?`<p class="sub" style="margin-top:8px">Probability model: lognormal at expiry with ATM implied volatility ${(MS.sig*100).toFixed(1)}% and ${MS.days.toFixed(1)} days left. It ignores skew, fat tails, events and your trend view, and it uses current LTPs, not the prices you may get. It is an estimate, not a forecast.</p>`:''}${fn}
+  <div><span>Breakeven (distance from spot)</span><b style="font-size:15px">${P.be.map(x=>x.toFixed(0)+' ('+(x>=spot?'+':'')+((x/spot-1)*100).toFixed(2)+'%'+(MS?', '+((x-spot)/MS.move).toFixed(1)+'σ':'')+')').join('<br>')||'-'}</b></div>${MS?`<div><span>Probability of profit (model)</span><b>${(MS.pop*100).toFixed(0)}%</b></div><div><span>1σ range to expiry</span><b style="font-size:15px">${(spot-MS.move).toFixed(0)} – ${(spot+MS.move).toFixed(0)}<br><small>±${MS.move.toFixed(0)} (${(MS.move/spot*100).toFixed(1)}%)</small></b></div><div><span>Net delta (position)</span><b>${nd>=0?'+':''}${nd.toFixed(2)}<br><small>${nd>=0?'gains':'loses'} ₹${Math.abs(nd*q).toFixed(0)} per +1 index point</small></b></div>`:''}</div><div class="chart">${CH}</div>${MS?`<p class="sub" style="margin-top:8px">Probability model: lognormal at expiry with ATM implied volatility ${(MS.sig*100).toFixed(1)}% and ${MS.days.toFixed(1)} days left. It ignores skew, fat tails, events and your trend view, and it uses current LTPs, not the prices you may get. It is an estimate, not a forecast.</p>`:''}${fn}
   ${/Short strangle/.test(name)?'<p class="warn">Short strangle has no cap on loss and needs large margin.</p>':''}
   <p class="sub" style="margin-top:8px">Expiry payoff at current LTPs, before charges. Screen built from OI and PCR only; it ignores IV and events.</p>`;
   ST.mg={legs,P,q};ST.legKey=name+'|'+lots+'|'+JSON.stringify(ST.spec)+'|'+($('hedge')?$('hedge').value:'');drawMargin();
@@ -597,7 +685,7 @@ function drawMargin(){
   <div><span>Required${est!=null?(hasF?' (rough)':' (floor)'):kt!=null?' (Kotak)':''}</span><b>${need!=null?inr(need):'tap Check'}</b></div>
   <div><span>Shortfall</span><b class="${sf>0?'sell':'buy'}">${sf==null?'-':sf>0?inr(sf):'None'}</b></div>
   <div><span>Kotak check (legs alone)</span><b>${kt!=null?inr(kt):'-'}</b></div>${rr}</div>
-  <p class="sub" style="margin-top:8px">${hasF?'Futures margin is a rough figure: '+(FUTM*100)+'% of contract value plus the hedge premium, with no hedge offset. Kotak blocks SPAN margin, so use Check funds & margin for its numbers. ':est==null?'This strategy has no cap on loss, so the estimate is not possible; use the Kotak figure, which has no hedge offset. ':'This is only a floor: the larger of the premium you pay for the buy legs and the strategy\'s worst-case loss. Kotak checks the sell leg\'s margin before its premium credit arrives, so the real peak need is higher, roughly the buy premium plus the hedged margin of the spread. '}Kotak checks one order at a time and only sees positions you already hold, so run Check funds &amp; margin again after the buy legs are filled to include the hedge benefit. Buys go first.</p>`
+  <p class="sub" style="margin-top:8px">${hasF?'Futures margin is a rough figure: '+(FUTM*100)+'% of contract value plus the hedge premium, with no hedge offset. Kotak blocks SPAN margin, so use Check funds & margin for its numbers. ':est==null?'This strategy has no cap on loss, so the estimate is not possible; use the Kotak figure, which has no hedge offset. ':'This is only a floor: the larger of the premium you pay for the buy legs and the strategy\'s worst-case loss. Kotak checks the sell leg\'s margin before its premium credit arrives, so the real peak need is higher, roughly the buy premium plus the hedged margin of the spread. '}Kotak checks one order at a time and only sees positions you already hold, so run Check funds &amp; margin again after the buy legs are filled to include the hedge benefit. Buys go first.</p>${sizingHtml(legs,P,q,need)}`
 }
 async function mCheck(){
   const R=$('mgr');R.textContent='Checking…';
@@ -637,7 +725,7 @@ function newPaper(ord,q,mkt){
   const b={id:Date.now(),sym:$('sym').value,exp:$('exp').value,q,legs:[],closed:false,t:new Date().toLocaleTimeString('en-IN')};
   const hasBuy=ord.some(x=>x.l.d==='BUY');
   for(const x of ord)b.legs.push({d:x.l.d,k:x.l.k,t:x.l.t,ts:x.o.ts,limit:mkt?null:+x.o.pr,status:(x.l.d==='SELL'&&hasBuy)?'WAIT':'PENDING'});
-  PP.unshift(b);paperTick();savePP();drawPaper();return b
+  PP.unshift(b);paperTick();savePP();drawPaper();jrAdd('paper',b.id,b.legs.map(l=>({d:l.d,k:l.k,t:l.t,e:l.entry||l.limit})),q);return b
 }
 function sqoff(id){
   const b=PP.find(x=>x.id===id);if(!b)return;
@@ -645,7 +733,7 @@ function sqoff(id){
   if(need.some(l=>!(markPx(b,l)>0))){alert('Open '+b.sym+' with the same expiry so a live price is available for square-off.');return}
   b.legs.forEach(l=>{if(l.status==='PENDING'||l.status==='WAIT')l.status='CANCELLED'});
   need.sort((a,c)=>(a.d==='SELL'?0:1)-(c.d==='SELL'?0:1)).forEach(l=>{l.exit=markPx(b,l);l.status='CLOSED'});
-  b.closed=true;savePP();drawPaper()
+  b.closed=true;savePP();drawPaper();{const q=b.q,pl=b.legs.filter(l=>l.status==='CLOSED').reduce((t,l)=>t+(l.d==='BUY'?l.exit-l.entry:l.entry-l.exit)*q,0);jrClose(b.id,pl)}
 }
 function clearPaper(){if(confirm('Delete all paper trades?')){PP=[];savePP();drawPaper()}}
 function drawPaper(){
@@ -689,6 +777,7 @@ async function place(){
     R.textContent='Sending…';
     const first=buys.length?buys:sells,ok=await sendLegs(first,R,'');
     if(!ok)return;
+    jrAdd('live',Date.now(),ord.map(x=>({d:x.l.d,k:x.l.k,t:x.l.t,e:+x.o.pr})),q);
     if(buys.length&&sells.length){
       const base=R.textContent+'\n\nBuy legs sent. Open the Neo order book and wait until they are FILLED; the hedge margin benefit starts only then.\n';R.textContent=base;
       const b=document.createElement('button');b.className='live';b.textContent='Send sell legs now';
@@ -812,11 +901,15 @@ async function load(auto){
 let PF={hold:[],pos:[],herr:'',perr:'',t:0},pfT=null;const TRD={};
 const inr2=v=>(v<0?'-':'')+'₹'+Math.abs(v).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}),pc=v=>(v>=0?'+':'')+v.toFixed(2)+'%',cz=v=>v>0.005?'buy':v<-0.005?'sell':'';
 const qPrev=q=>num(q&&q.ohlc&&q.ohlc.close);
-async function tokByTrd(seg,sym){
+async function instByTrd(seg,sym){
   if(!M[seg])M[seg]=await Kotak.master(seg);
-  if(!TRD[seg]){const a=cols(M[seg]),m=new Map();for(let i=1;i<a.L.length;i++){const c=a.L[i].split(',');if(c.length<a.h.length-1)continue;const k=String(c[a.ts]||'').trim().toLowerCase();if(k)m.set(k,String(c[a.tok]).trim())}TRD[seg]=m}
+  if(!TRD[seg]){const a=cols(M[seg]),m=new Map();
+    for(let i=1;i<a.L.length;i++){const c=a.L[i].split(',');if(c.length<a.h.length-1)continue;const k=String(c[a.ts]||'').trim().toLowerCase();
+      if(k){const e=a.e>=0?num(c[a.e]):0;m.set(k,{tok:String(c[a.tok]).trim(),name:a.name>=0?String(c[a.name]||'').trim():'',type:a.typ>=0?String(c[a.typ]||'').trim():'',k:a.k>=0?num(c[a.k])/100:0,exp:e+(e<1.6e9?315513600:0)})}}
+    TRD[seg]=m}
   return TRD[seg].get(String(sym).toLowerCase())||null
 }
+const tokByTrd=async(sg,sy)=>{const i=await instByTrd(sg,sy);return i&&i.tok};
 function pfList(r){const d=r&&(Array.isArray(r)?r:r.data);if(Array.isArray(d))return d;if(r&&r.stat==='Not_Ok'){if(/invalid session|unauthori/i.test(String(r.emsg||'')))throw new Error('401 '+r.emsg);return[]}return[]}
 async function loadHold(){
   const r=await http('GET',S.base+'/portfolio/v1/holdings',{...Kotak.TH(),accept:'application/json'}),list=pfList(r);
@@ -828,15 +921,15 @@ async function loadHold(){
 }
 async function loadPos(){
   const r=await http('GET',S.base+'/quick/user/positions',{...Kotak.TH(),accept:'application/json'}),list=pfList(r),items=[];
-  for(const p of list){const seg=p.exSeg,tok=await tokByTrd(seg,p.trdSym).catch(()=>null);items.push({p,seg,tok})}
+  for(const p of list){const seg=p.exSeg,inst=await instByTrd(seg,p.trdSym).catch(()=>null);items.push({p,seg,tok:inst&&inst.tok,inst})}
   const qs=await Kotak.quotes(items.filter(x=>x.tok).map(x=>x.seg+'|'+x.tok)),by={};qs.forEach(q=>by[qTok(q)]=q);
-  return items.map(({p,tok})=>{
+  return items.map(({p,tok,inst})=>{
     const q=by[tok]||{},cfB=num(p.cfBuyQty),cfS=num(p.cfSellQty),bq=cfB+num(p.flBuyQty),sq=cfS+num(p.flSellQty),
       ba=num(p.buyAmt)+num(p.cfBuyAmt),sa=num(p.sellAmt)+num(p.cfSellAmt),net=(bq||sq)?bq-sq:num(p.qty),
       ab=bq?ba/bq:0,as=sq?sa/sq:0,ltp=qLtp(q),prev=qPrev(q)||ltp,live=ltp>0,mark=live?ltp:(net>0?ab:as);
     const pnl=sa-ba+net*mark,carried=(num(p.cfSellAmt)-num(p.cfBuyAmt))+(cfB-cfS)*prev,day=pnl-carried;
     const inv=net>0?ab*net:net<0?as*-net:ba,base=Math.abs(net)*prev||inv;
-    return{name:p.trdSym||p.sym,prod:p.prod,net,ab,as,ltp,pnl,pnlp:inv?pnl/inv*100:0,day,dayp:base?day/base*100:0,live,closed:net===0,raw:`buyAmt ${p.buyAmt} · cfBuyAmt ${p.cfBuyAmt||0} · sellAmt ${p.sellAmt} · cfSellAmt ${p.cfSellAmt||0}`}})
+    return{inst,name:p.trdSym||p.sym,prod:p.prod,net,ab,as,ltp,pnl,pnlp:inv?pnl/inv*100:0,day,dayp:base?day/base*100:0,live,closed:net===0,raw:`buyAmt ${p.buyAmt} · cfBuyAmt ${p.cfBuyAmt||0} · sellAmt ${p.sellAmt} · cfSellAmt ${p.cfSellAmt||0}`}})
 }
 function demoPf(){return{hold:[{name:'ITBEES',full:'Nippon India ETF Nifty IT',qty:45,avg:38.7162,ltp:40.1,cost:1742.23,val:1804.5,pnl:62.27,pnlp:3.57,day:33.3,dayp:1.87,live:true},
   {name:'AXISBANK',full:'Axis Bank',qty:9,avg:651.43,ltp:640.2,cost:5862.9,val:5761.8,pnl:-101.1,pnlp:-1.72,day:-27,dayp:-0.47,live:true}],
@@ -848,7 +941,7 @@ async function loadPf(){
     else{let hold=[],pos=[],herr='',perr='';
       try{hold=await loadHold()}catch(e){if(/401|invalid session/i.test(String(e.message||e)))throw e;herr=String(e.message||e)}
       try{pos=await loadPos()}catch(e){if(/401|invalid session/i.test(String(e.message||e)))throw e;perr=String(e.message||e)}
-      PF={hold,pos,herr,perr,t:Date.now()}}
+      PF={hold,pos,herr,perr,t:Date.now()};try{PF.risk=await buildRisk(pos)}catch(e){PF.rerr=String(e.message||e)}}
     renderPf()
   }catch(e){const m=String(e.message||e);if(/^\s*401\b|invalid session/i.test(m)){sessionExpired();return}$('pferr').textContent=m}
   finally{PF.busy=false;$('pfref').textContent='⟳ Refresh'}
@@ -865,7 +958,7 @@ function renderPf(){
     html+=H.length?H.map(x=>`<div class="pfr"><div class="t"><span>${x.name}</span><span>${x.live?'':'(prev close) '}${inr2(x.ltp)}</span></div>
       <div class="s"><span>${x.qty} × ${inr2(x.avg)} = ${inr2(x.cost)}</span><span>Value ${inr2(x.val)}</span></div>
       <div class="s"><span>P&L <b class="${cz(x.pnl)}">${inr2(x.pnl)} (${pc(x.pnlp)})</b></span><span>Today <b class="${cz(x.day)}">${inr2(x.day)} (${pc(x.dayp)})</b></span></div></div>`).join(''):'<p class="sub">No holdings reported.</p>'
-  }else{
+  }else if(tab==='Risk'){html=riskHtml()}else if(tab==='Journal'){html=journalHtml()}else{
     html=PF.perr?`<p class="warn">Positions: ${PF.perr}</p>`:'';
     html+=P.length?P.map(x=>`<div class="pfr"><div class="t"><span>${x.name} <small>${x.prod||''}${x.closed?' · closed':''}</small></span><span>${x.live?inr2(x.ltp):'no live price'}</span></div>
       <div class="s"><span>Net ${x.net>0?'+':''}${x.net} · buy avg ${inr2(x.ab)} · sell avg ${inr2(x.as)}</span></div>
@@ -873,8 +966,309 @@ function renderPf(){
       <div class="s"><small>${x.raw}</small></div></div>`).join(''):'<p class="sub">No positions reported for today.</p>'}
   $('pflist').innerHTML=html
 }
-function pfShow(on){['ctl','out'].forEach(id=>$(id).classList[on?'add':'remove']('hide'));$('pf').classList[on?'remove':'add']('hide');clearInterval(pfT);if(on){loadPf();pfT=setInterval(loadPf,20000)}}
-chips('sym');chips('mode');chips('pftab');$('pfb').onclick=()=>pfShow(true);$('pfback').onclick=()=>pfShow(false);$('pfref').onclick=loadPf;$('pftab').onchange=renderPf;
+/* ---------- settings, lock, alerts ---------- */
+const CFGD={alerts:{on:false,sig:true,be:true,beDist:50,pnl:true,tp:2000,sl:2000},sizing:{cap:0,risk:1,stop:2},lock:{h:'',salt:'',min:5}};
+let CFG=JSON.parse(JSON.stringify(CFGD));try{const j=JSON.parse(localStorage.getItem('os_cfg')||'null');if(j)for(const k in CFGD)CFG[k]={...CFGD[k],...(j[k]||{})}}catch{}
+const saveCfg=()=>{try{localStorage.setItem('os_cfg',JSON.stringify(CFG))}catch{}};
+let toastT=0;const ALR={};
+function toast(t,b){const e=$('toast');if(!e)return;e.innerHTML='<b>'+t+'</b><br>'+b;e.classList.remove('hide');clearTimeout(toastT);toastT=setTimeout(()=>e.classList.add('hide'),9000)}
+function beep(){try{const C=window.AudioContext||window.webkitAudioContext;if(!C)return;const a=new C(),o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=880;g.gain.value=0.08;o.start();setTimeout(()=>{try{o.stop();a.close()}catch{}},250)}catch{}}
+async function nativeNotify(title,body){const LN=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.LocalNotifications;if(!LN)return;
+  try{let p=await LN.checkPermissions();if(p.display!=='granted'){p=await LN.requestPermissions();if(p.display!=='granted')return}
+    await LN.schedule({notifications:[{id:Math.floor(Math.random()*2e9),title,body}]})}catch{}}
+function notify(key,title,body,cool){const n=Date.now();if(ALR[key]&&n-ALR[key]<(cool||300000))return;ALR[key]=n;toast(title,body);try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch{}beep();nativeNotify(title,body)}
+const LASTSIG={};
+function paperPnl(b){let t=0;for(const l of b.legs){if(l.status==='FILLED'){const p=ltpOf(b,l);if(p>0)t+=(l.d==='BUY'?p-l.entry:l.entry-p)*b.q}else if(l.status==='CLOSED')t+=(l.d==='BUY'?l.exit-l.entry:l.entry-l.exit)*b.q}return t}
+function checkAlerts(){
+  const a=CFG.alerts;if(!a.on||!ST||!ST.A)return;
+  try{
+    if(a.sig){const D=direction(),k=ST.key+'|'+HZ,prev=LASTSIG[k];if(prev!==undefined&&prev!==D.call)notify('sig|'+k,'Signal changed',$('sym').value+' ('+HZ+'): '+prev+' → '+D.call,120000);LASTSIG[k]=D.call}
+    if(a.be&&ST.P&&ST.P.be&&ST.P.be.length){const n=ST.P.be.map(b=>({b,d:Math.abs(b-ST.spot)})).sort((x,y)=>x.d-y.d)[0];if(n.d<=a.beDist)notify('be|'+ST.key,'Near breakeven','Spot '+ST.spot.toFixed(0)+' is '+n.d.toFixed(0)+' points from breakeven '+n.b.toFixed(0),600000)}
+    if(a.pnl)for(const b of PP){if(b.closed)continue;const p=paperPnl(b);if(a.tp>0&&p>=a.tp)notify('tp|'+b.id,'Paper trade at target','P&L '+inr(p),3600000);if(a.sl>0&&p<=-a.sl)notify('sl|'+b.id,'Paper trade at stop','P&L '+inr(p),3600000)}
+  }catch{}
+}
+async function sha(t){try{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}catch{let h=5381;for(const c of t)h=((h<<5)+h+c.charCodeAt(0))|0;return'x'+h}}
+let hiddenAt=0,badPin=0,lockedUntil=0;
+function lockNow(){if(!CFG.lock.h)return;$('lock').classList.remove('hide');$('lpin').value='';$('lerr').textContent=''}
+async function tryUnlock(){
+  if(Date.now()<lockedUntil){$('lerr').textContent='Too many tries. Wait '+Math.ceil((lockedUntil-Date.now())/1000)+' s.';return}
+  const h=await sha(CFG.lock.salt+$('lpin').value);
+  if(h===CFG.lock.h){badPin=0;$('lock').classList.add('hide');$('lpin').value=''}else{badPin++;$('lerr').textContent='Wrong PIN.';if(badPin>=5){lockedUntil=Date.now()+30000;badPin=0}}
+}
+async function setPin(){const p=$('npin').value.trim();if(!/^\d{4,8}$/.test(p)){$('lkst').textContent='PIN must be 4 to 8 digits.';return}
+  CFG.lock.salt=Math.random().toString(36).slice(2);CFG.lock.h=await sha(CFG.lock.salt+p);saveCfg();$('npin').value='';renderSettings();toast('App lock','PIN saved.')}
+function rmPin(){CFG.lock.h='';CFG.lock.salt='';saveCfg();renderSettings()}
+function forgotPin(){if(!confirm('This removes the PIN, clears the saved keys and logs you out. Continue?'))return;CFG.lock.h='';CFG.lock.salt='';saveCfg();
+  ['os_ck','os_ucc','os_mob'].forEach(k=>{try{localStorage.removeItem(k)}catch{}});['ck','ucc','mob'].forEach(i=>{$(i).value=''});dropSess();$('lock').classList.add('hide');resetUi('PIN reset. Please log in again.')}
+function renderSettings(){
+  $('lkst').textContent=CFG.lock.h?'App lock is ON.':'App lock is OFF.';$('lmin').value=String(CFG.lock.min);
+  const a=CFG.alerts,z=CFG.sizing;$('al_on').checked=a.on;$('al_sig').checked=a.sig;$('al_be').checked=a.be;$('al_pnl').checked=a.pnl;$('al_bd').value=a.beDist;$('al_tp').value=a.tp;$('al_sl').value=a.sl;
+  $('sz_cap').value=z.cap||'';$('sz_risk').value=z.risk;$('sz_stop').value=z.stop
+}
+function readSettings(){const a=CFG.alerts,z=CFG.sizing;a.on=$('al_on').checked;a.sig=$('al_sig').checked;a.be=$('al_be').checked;a.pnl=$('al_pnl').checked;a.beDist=+$('al_bd').value||50;a.tp=+$('al_tp').value||0;a.sl=+$('al_sl').value||0;
+  z.cap=+$('sz_cap').value||0;z.risk=+$('sz_risk').value||1;z.stop=+$('sz_stop').value||2;CFG.lock.min=+$('lmin').value;saveCfg()}
+function sizingHtml(legs,P,q,need){
+  const z=CFG.sizing,lots=qtyNow().l,cap=z.cap>0?z.cap:(S.demo?500000:(S.avail||0));
+  if(!cap)return '<p class="sub">Sizing: set your capital in Settings, or tap Check funds.</p>';
+  const budget=cap*z.risk/100,cr=legs.filter(x=>x.t!=='FUT').reduce((t,x)=>t+(x.d==='SELL'?x.p:-x.p),0)*q/lots;let per=null,how='';
+  if(P.mn!==-Infinity){per=-P.mn*q/lots;how='worst-case loss'}else if(cr>0){per=cr*z.stop;how='assumed stop at '+z.stop+'× the credit'}
+  if(!(per>0))return '<p class="sub">Sizing: this strategy has no defined loss; add a hedge.</p>';
+  const lr=Math.floor(budget/per),pn=need>0?need/lots:0,av=S.demo?cap:(S.avail||cap),lm=pn>0?Math.floor(av/pn):Infinity,sug=Math.max(0,Math.min(lr,lm,MAXLOTS));
+  return `<div class="kv" style="margin-top:10px"><div><span>Risk budget (${z.risk}% of ${inr(cap)})</span><b>${inr(budget)}</b></div><div><span>Loss per lot (${how})</span><b>${inr(per)}</b></div>
+  <div><span>Suggested lots</span><b>${sug}</b><small>risk limit ${lr}${isFinite(lm)?', funds limit '+lm:''}</small></div></div>${sug>0&&sug!==lots?`<button class="alt" onclick="useLots(${sug})">Use ${sug} lot${sug>1?'s':''}</button>`:''}`
+}
+function useLots(n){$('lots').value=n;onStrat()}
+ 
+/* ---------- payoff chart ---------- */
+const kf=v=>Math.abs(v)>=1e5?(v/1e5).toFixed(1)+'L':Math.abs(v)>=1e3?(v/1e3).toFixed(1)+'k':v.toFixed(0);
+function payoffSvg(legs,q,spot,move,P){
+  try{const W=340,H=180,pl=34,pr=8,pt=10,pb=22,ks=legs.map(l=>l.k).filter(k=>k>0),lo0=Math.min(spot,...ks),hi0=Math.max(spot,...ks),pad=Math.max(move*1.3,(hi0-lo0)*0.25,spot*0.01);
+    let lo=lo0-pad,hi=hi0+pad;(P.be||[]).forEach(b=>{lo=Math.min(lo,b-pad*0.3);hi=Math.max(hi,b+pad*0.3)});lo=Math.max(lo,1);
+    const N=160,xs=[],ys=[];for(let i=0;i<=N;i++){const x=lo+(hi-lo)*i/N;xs.push(x);ys.push(pay(legs,x)*q)}
+    let mn=Math.min(...ys,0),mx=Math.max(...ys,0);if(mx-mn<1){mx+=1;mn-=1}const rg=(mx-mn)*0.08;mx+=rg;mn-=rg;
+    const X=x=>pl+(x-lo)/(hi-lo)*(W-pl-pr),Y=y=>pt+(mx-y)/(mx-mn)*(H-pt-pb),y0=Y(0),pts=xs.map((x,i)=>X(x).toFixed(1)+','+Y(ys[i]).toFixed(1));
+    const area='M'+X(lo).toFixed(1)+','+y0.toFixed(1)+' L'+pts.join(' L')+' L'+X(hi).toFixed(1)+','+y0.toFixed(1)+' Z';
+    const bx=(spot-move>lo?X(spot-move):X(lo)),bw=(spot+move<hi?X(spot+move):X(hi))-bx;
+    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Profit and loss at expiry"><defs><clipPath id="cpu"><rect x="0" y="0" width="${W}" height="${Math.max(0,y0).toFixed(1)}"/></clipPath><clipPath id="cpd"><rect x="0" y="${y0.toFixed(1)}" width="${W}" height="${H}"/></clipPath></defs>
+    <rect x="${bx.toFixed(1)}" y="${pt}" width="${Math.max(0,bw).toFixed(1)}" height="${H-pt-pb}" style="fill:var(--acc);opacity:.10"/>
+    <path d="${area}" clip-path="url(#cpu)" style="fill:var(--ok);opacity:.35"/><path d="${area}" clip-path="url(#cpd)" style="fill:var(--bad);opacity:.35"/>
+    <line x1="${pl}" x2="${W-pr}" y1="${y0.toFixed(1)}" y2="${y0.toFixed(1)}" style="stroke:var(--mut);stroke-width:1"/>
+    <polyline points="${pts.join(' ')}" style="fill:none;stroke:var(--ink);stroke-width:1.6"/>
+    <line x1="${X(spot).toFixed(1)}" x2="${X(spot).toFixed(1)}" y1="${pt}" y2="${H-pb}" style="stroke:var(--acc);stroke-width:1.2;stroke-dasharray:4 3"/>
+    ${(P.be||[]).map(b=>`<circle cx="${X(b).toFixed(1)}" cy="${y0.toFixed(1)}" r="3.5" style="fill:var(--amb)"/><text x="${X(b).toFixed(1)}" y="${(y0+(ys.some(v=>v>0)?14:-6)).toFixed(1)}" text-anchor="middle">${b.toFixed(0)}</text>`).join('')}
+    <text x="${pl-3}" y="${(Y(mx-rg)+3).toFixed(1)}" text-anchor="end">${kf(mx-rg)}</text><text x="${pl-3}" y="${(Y(mn+rg)+3).toFixed(1)}" text-anchor="end">${kf(mn+rg)}</text>
+    <text x="${pl}" y="${H-6}">${lo.toFixed(0)}</text><text x="${X(spot).toFixed(1)}" y="${H-6}" text-anchor="middle" style="fill:var(--acc)">spot ${spot.toFixed(0)}</text><text x="${W-pr}" y="${H-6}" text-anchor="end">${hi.toFixed(0)}</text></svg>
+    <p class="sub" style="margin:4px 6px 4px">P&amp;L at expiry in ₹ for the lots chosen. Shaded band is ±1σ; dots are breakevens.</p>`
+  }catch{return ''}
+}
+ 
+/* ---------- IV history ---------- */
+let IVH={};try{IVH=JSON.parse(localStorage.getItem('os_ivh')||'{}')}catch{}
+const ivb=d=>d<=10?'w':(d>=20&&d<=50)?'m':null;let lastIV=0;
+function recordIV(){
+  if(!ST||S.demo||Date.now()-lastIV<300000)return;const a=atmIV();if(!a)return;const b=ivb(a.T*365);if(!b)return;lastIV=Date.now();
+  const sy=$('sym').value,h=(IVH[sy]=IVH[sy]||{w:{},m:{}})[b];h[today()]=a.iv;const ks=Object.keys(h).sort();while(ks.length>400)delete h[ks.shift()];
+  try{localStorage.setItem('os_ivh',JSON.stringify(IVH))}catch{}
+}
+function ivRank(sym,days,iv){const b=ivb(days),h=b&&IVH[sym]&&IVH[sym][b];if(!h)return null;const v=Object.entries(h).filter(([d])=>d!==today()).map(x=>x[1]);
+  if(v.length<10)return{n:v.length,rank:null};return{n:v.length,rank:v.filter(x=>x<iv).length/v.length*100}}
+ 
+/* ---------- trade journal ---------- */
+let JR=[];try{JR=JSON.parse(localStorage.getItem('os_jr')||'[]')}catch{}
+const saveJr=()=>{try{localStorage.setItem('os_jr',JSON.stringify(JR.slice(0,500)))}catch{}};
+function jrAdd(kind,id,legs,q){
+  let sig='';try{if(ST&&ST.A)sig=direction().call}catch{}
+  JR.unshift({id,t:Date.now(),kind,sym:$('sym').value,exp:$('exp').value,strat:$('strat').value,view:$('view').value,hz:HZ,sig,legs,q,status:kind==='paper'?'open':'sent',pnl:null});saveJr()
+}
+function jrClose(id,pnl){const e=JR.find(x=>x.id===id&&x.kind==='paper');if(e){e.status='closed';e.pnl=pnl;saveJr()}}
+function lineSvg(series,W=320,H=110){
+  const all=series.flatMap(s=>s.v);if(all.length<2)return '';let mn=Math.min(...all,0),mx=Math.max(...all,0);if(mx-mn<1e-9){mx+=1;mn-=1}
+  const X=(i,n)=>6+i/(Math.max(1,n-1))*(W-12),Y=v=>6+(mx-v)/(mx-mn)*(H-12);
+  return `<svg viewBox="0 0 ${W} ${H}"><line x1="6" x2="${W-6}" y1="${Y(0).toFixed(1)}" y2="${Y(0).toFixed(1)}" style="stroke:var(--line)"/>${series.map(s=>`<polyline points="${s.v.map((v,i)=>X(i,s.v.length).toFixed(1)+','+Y(v).toFixed(1)).join(' ')}" style="fill:none;stroke:var(${s.c});stroke-width:1.6"/>`).join('')}</svg>`
+}
+function journalHtml(){
+  const cl=JR.filter(e=>e.kind==='paper'&&e.status==='closed'&&e.pnl!=null),w=cl.filter(e=>e.pnl>0),l=cl.filter(e=>e.pnl<=0),tot=cl.reduce((t,e)=>t+e.pnl,0);
+  let c=0;const curve=cl.slice().reverse().map(e=>c+=e.pnl);
+  const mt=cl.filter(e=>{const v=e.view,g=e.sig;return(v==='Bullish'&&g==='Bullish')||(v==='Bearish'&&g==='Bearish')||(v==='Futures + hedge'&&g!=='No trade')}),mw=mt.filter(e=>e.pnl>0);
+  const kv=(a,b)=>`<div><span>${a}</span><b>${b}</b></div>`;
+  let h=`<h2>Trade journal</h2><div class="kv">${kv('Closed paper trades',cl.length)}${kv('Win rate',cl.length?(w.length/cl.length*100).toFixed(0)+'%':'-')}
+   ${kv('Total P&L',`<span class="${cz(tot)}" style="font-size:18px;color:inherit">${inr2(tot)}</span>`)}${kv('Avg win / avg loss',(w.length?inr2(w.reduce((t,e)=>t+e.pnl,0)/w.length):'-')+' / '+(l.length?inr2(l.reduce((t,e)=>t+e.pnl,0)/l.length):'-'))}
+   ${kv('Followed a signal',mt.length+' trades'+(mt.length?', '+(mw.length/mt.length*100).toFixed(0)+'% won':''))}${kv('Open / live',JR.filter(e=>e.status==='open'||e.status==='sent').length)}</div>`;
+  if(curve.length>1)h+=`<div class="chart" style="margin-top:10px">${lineSvg([{v:curve,c:'--ok'}])}<p class="sub" style="margin:2px 6px 4px">Cumulative P&amp;L of closed paper trades</p></div>`;
+  h+=JR.length?JR.slice(0,40).map(e=>`<div class="pfr"><div class="t"><span>${e.sym} · ${e.strat}</span><span class="${e.pnl==null?'':cz(e.pnl)}">${e.pnl==null?e.status:inr2(e.pnl)}</span></div>
+    <div class="s"><span>${new Date(e.t).toLocaleString('en-IN')} · ${e.kind} · ${e.hz}</span><span>signal at entry: ${e.sig||'-'}</span></div>
+    <div class="s"><small>${e.legs.map(x=>x.d+' '+(x.t==='FUT'?'FUT':x.k+x.t)).join(', ')} ×${e.q}</small></div></div>`).join(''):'<p class="sub">No trades yet. Paper trades and live orders you place from this app are saved here.</p>';
+  return h+'<button class="danger" onclick="jrClear()">Clear journal</button>'
+}
+function jrClear(){if(confirm('Delete the whole journal?')){JR=[];saveJr();renderPf()}}
+ 
+/* ---------- portfolio risk ---------- */
+const optPx=(F,K,T,iv,call)=>b76(F,K,T,iv,call)*Math.exp(-RF*T);
+async function buildRisk(rows){
+  const open=rows.filter(x=>x.inst&&x.net!==0&&x.live&&x.inst.exp>0),out=[],skipped=new Set(),spots={};
+  for(const x of open){const nm=x.inst.name;if(!IDX[nm]){skipped.add(nm||x.name);continue}
+    if(!spots[nm]){for(const c of IDX[nm].spot){try{const q=await Kotak.quotes([c]);const v=qLtp(q[0]||{});if(v){spots[nm]=v;break}}catch{}await sleep(250)}}
+    if(!spots[nm]){skipped.add(nm);continue}
+    const T=Math.max((x.inst.exp+36000-Date.now()/1000)/31557600,1/(365*24)),F=spots[nm]*Math.exp((RF-0.013)*T),ty=x.inst.type;
+    const mv=[-0.02,-0.01,0.01,0.02];
+    if(ty==='CE'||ty==='PE'){const call=ty==='CE',K=x.inst.k,iv=impVol(x.ltp,F,K,T,call)||0.18,p0=optPx(F,K,T,iv,call),sd=iv*Math.sqrt(T),d1=(Math.log(F/K)+0.5*sd*sd)/sd,df=Math.exp(-RF*T),dl=call?df*NCDF(d1):-df*NCDF(-d1);
+      out.push({name:x.name,net:x.net,delta:x.net*dl,theta:T>1/365?x.net*(optPx(F,K,T-1/365,iv,call)-p0):0,vega:x.net*(optPx(F,K,T,iv+0.01,call)-p0),sc:mv.map(m=>x.net*(optPx(F*(1+m),K,T,iv,call)-p0))})}
+    else out.push({name:x.name,net:x.net,delta:x.net,theta:0,vega:0,sc:mv.map(m=>x.net*F*m)})}
+  const sum=f=>out.reduce((t,r)=>t+f(r),0);let mg=null;try{const r=await Kotak.limits(),d=Array.isArray(r)?r[0]:r;mg={used:num(d.MarginUsed),net:num(d.Net)}}catch{}
+  return{rows:out,skipped:[...skipped],delta:sum(r=>r.delta),theta:sum(r=>r.theta),vega:sum(r=>r.vega),sc:[0,1,2,3].map(i=>sum(r=>r.sc[i])),mg}
+}
+function riskHtml(){
+  if(PF.rerr)return `<p class="warn">Risk: ${PF.rerr}</p>`;const R=PF.risk;if(!R)return '<p class="sub">Refresh to calculate.</p>';
+  const t=(l,v,s)=>`<div><span>${l}</span><b class="${cz(v)}">${inr2(v)}</b>${s?`<small>${s}</small>`:''}</div>`,lab=['-2%','-1%','+1%','+2%'];
+  let h=`<h2>F&amp;O risk</h2>`;
+  if(!R.rows.length)h+='<p class="sub">No open index options or futures with live prices.</p>';
+  else h+=`<div class="kv">${t('Net delta (₹ per +1 index point)',R.delta,'net '+R.delta.toFixed(1)+' units')}${t('Theta (₹ per day)',R.theta,'negative = time decay costs you')}${t('Vega (₹ per +1 IV point)',R.vega,'')}
+    <div><span>Margin used / net available</span><b style="font-size:15px">${R.mg?inr2(R.mg.used)+' / '+inr2(R.mg.net):'-'}</b></div></div>
+    <p class="sub" style="margin:10px 0 4px">If the index moves (all positions, same IV, today's prices):</p><div class="kv">${R.sc.map((v,i)=>t(lab[i],v,'')).join('')}</div>
+    <p class="sub" style="margin:10px 0 0">Per position</p>${R.rows.map(r=>`<div class="pfr"><div class="t"><span>${r.name}</span><span>net ${r.net}</span></div><div class="s"><span>Δ ${r.delta.toFixed(1)} · θ ${inr2(r.theta)}/day · vega ${inr2(r.vega)}</span></div></div>`).join('')}`;
+  if(R.skipped.length)h+=`<p class="sub">Not included (no index mapping): ${R.skipped.join(', ')}</p>`;
+  return h+'<p class="sub" style="margin-top:8px">Model values from implied volatility backed out of each option\'s price, with the forward estimated from the spot. They are estimates, not Kotak\'s numbers.</p>'
+}
+ 
+/* ---------- local history store: IndexedDB (falls back to localStorage) ---------- */
+const IDBP=new Promise(res=>{try{const r=indexedDB.open('os_hist',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>res(r.result);r.onerror=()=>res(null);r.onblocked=()=>res(null)}catch{res(null)}});
+async function idbGet(k){const db=await IDBP;if(!db){try{return JSON.parse(localStorage.getItem('idb_'+k)||'null')}catch{return null}}
+  return new Promise(res=>{try{const q=db.transaction('kv').objectStore('kv').get(k);q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null)}catch{res(null)}})}
+async function idbSet(k,v){const db=await IDBP;if(!db){try{localStorage.setItem('idb_'+k,JSON.stringify(v))}catch{}return true}
+  return new Promise(res=>{try{const tx=db.transaction('kv','readwrite');tx.objectStore('kv').put(v,k);tx.oncomplete=()=>res(true);tx.onerror=()=>res(false)}catch{res(false)}})}
+async function idbDel(k){const db=await IDBP;if(!db){try{localStorage.removeItem('idb_'+k)}catch{}return}
+  return new Promise(res=>{try{const tx=db.transaction('kv','readwrite');tx.objectStore('kv').delete(k);tx.oncomplete=()=>res(true);tx.onerror=()=>res(false)}catch{res(false)}})}
+try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch{}
+const HD={D:{span:170,depth:2190,fresh:600000},'60min':{span:80,depth:1095,fresh:300000}};
+const histState={busy:false,msg:'',err:''},cmpBar=(a,b)=>a.t<b.t?-1:a.t>b.t?1:0;
+async function histLoad(sym,tf){const r=await idbGet('h|'+sym+'|'+tf);return r&&Array.isArray(r.bars)?r:{bars:[],t:0,from:null}}
+async function kRange(sym,tf,from,to,span,onChunk,sink){ // newest to oldest, stops after two empty chunks
+  const seg=IDX[sym].seg.replace('_fo','_cm'),DAY=864e5,F=Date.parse(from+'T00:00:00Z'),
+    nm=[...new Set(IDX[sym].spot.map(x=>x.split('|')[1]).flatMap(n=>[n,n.toUpperCase()]))],toks=[...new Set([await idxToken(sym),...nm,IDXTOK[sym]])];let last='';
+  for(const tok of toks){
+    try{let empty=0;
+      for(let end=Date.parse(to+'T00:00:00Z');end>=F;){
+        const start=Math.max(F,end-span*DAY),rows=await Kotak.hist(seg+'|'+tok,tf,new Date(start).toISOString().slice(0,10),new Date(end).toISOString().slice(0,10));
+        if(rows.length){empty=0;sink.push(...rows.map(candle).filter(x=>x.c>0))}else if(++empty>=2)break;
+        if(onChunk)onChunk(sink.length);
+        end=start-DAY;await sleep(1300)}
+      try{localStorage.setItem('os_it_'+sym,tok)}catch{}
+      return}
+    catch(e){last=String(e.message||e);if(/\b429\b|rate limit|too many/i.test(last))throw e;await sleep(1300)}}
+  throw new Error(last||'history failed')
+}
+async function histSync(sym,tf,force,onP){
+  const cfg=HD[tf],key='h|'+sym+'|'+tf,rec=await histLoad(sym,tf);
+  if(!force&&rec.bars.length&&Date.now()-rec.t<cfg.fresh)return rec.bars;
+  const to=ymd(new Date()),want=ymd(new Date(Date.now()-cfg.depth*864e5)),sink=[];let err=null,backfill=false;
+  try{
+    if(!rec.bars.length||!rec.from){backfill=true;await kRange(sym,tf,want,to,cfg.span,onP,sink)}
+    else{
+      const last=rec.bars[rec.bars.length-1].d,from=ymd(new Date(Date.parse(last+'T00:00:00Z')-4*864e5));
+      await kRange(sym,tf,from,to,cfg.span,onP,sink);
+      if(rec.from>want){backfill=true;await kRange(sym,tf,want,ymd(new Date(Date.parse(rec.from+'T00:00:00Z')-864e5)),cfg.span,onP,sink)}}
+  }catch(e){err=e}
+  const m=new Map();rec.bars.concat(sink).forEach(b=>m.set(b.t,b));
+  rec.bars=[...m.values()].sort(cmpBar);rec.sym=sym;rec.tf=tf;
+  if(!err&&backfill)rec.from=want;
+  else if(err&&sink.length){const old=sink.reduce((t,b)=>b.d<t?b.d:t,'9999');if(!rec.from||old<rec.from)rec.from=old}
+  if(!err)rec.t=Date.now();
+  if(rec.bars.length)await idbSet(key,rec);
+  if(err)throw err;
+  return rec.bars
+}
+async function histSyncAll(){
+  if(histState.busy||!S.base||S.demo)return;histState.busy=true;histState.err='';
+  try{for(const sym of Object.keys(IDX))for(const tf of Object.keys(HD)){
+    histState.msg='Syncing '+sym+' '+tf+'…';renderHist();
+    try{await histSync(sym,tf,true,n=>{histState.msg='Syncing '+sym+' '+tf+': '+n+' candles';renderHist()})}
+    catch(e){const m=String(e.message||e);histState.err+=sym+' '+tf+': '+m.slice(0,120)+'\n';renderHist();if(/429|rate limit|too many/i.test(m))await sleep(30000)}}
+    histState.msg='Finished '+new Date().toLocaleTimeString('en-IN')}
+  finally{histState.busy=false;renderHist()}
+}
+async function renderHist(){
+  const el=$('hist_info');if(!el)return;let h='';
+  for(const sym of Object.keys(IDX)){const row=[];
+    for(const tf of Object.keys(HD)){const r=await histLoad(sym,tf),n=r.bars.length;row.push(tf+': '+(n?n+' candles ('+r.bars[0].d+' to '+r.bars[n-1].d+')':'none'))}
+    h+='<b>'+sym+'</b> · '+row.join(' · ')+'<br>'}
+  el.innerHTML=h;$('hist_msg').textContent=(histState.msg||'')+(histState.err?'\n'+histState.err:'');$('hist_sync').disabled=histState.busy
+}
+/* ---------- history helper, scanner, backtest ---------- */
+async function kHist(sym,iv,chunks,span){
+  const seg=IDX[sym].seg.replace('_fo','_cm'),DAY=864e5,end=new Date(),d0=n=>ymd(new Date(+end-n*DAY)),
+    nm=[...new Set(IDX[sym].spot.map(x=>x.split('|')[1]).flatMap(n=>[n,n.toUpperCase()]))],toks=[...new Set([await idxToken(sym),...nm,IDXTOK[sym]])];let last='';
+  for(const tok of toks){
+    try{let out=[];for(let i=0;i<chunks;i++){const to=d0(i*(span+1)),from=d0(i*(span+1)+span);out=(await Kotak.hist(seg+'|'+tok,iv,from,to)).map(candle).filter(x=>x.c>0).concat(out);await sleep(1300)}
+      const m=new Map();out.forEach(b=>m.set(b.t,b));try{localStorage.setItem('os_it_'+sym,tok)}catch{}return[...m.values()].sort((a,b)=>a.t<b.t?-1:a.t>b.t?1:0)}
+    catch(e){last=String(e.message||e);if(/\b429\b|rate limit|too many/i.test(last))throw e;await sleep(1300)}}
+  throw new Error(last||'history failed')
+}
+const TRC={};
+async function trendFor(sym){
+  const c=TRC[sym];if(c&&Date.now()-c.t<600000)return c;
+  let serr='';try{await histSync(sym,'D');await histSync(sym,'60min')}catch(e){serr=String(e.message||e)}
+  const d=(await histLoad(sym,'D')).bars,h=(await histLoad(sym,'60min')).bars;
+  if(d.length<60)throw new Error(serr||'no stored history yet');
+  const r={t:Date.now(),h:tf(h.slice(-300),'H'),d:tf(d,'D'),w:tf(grp(d,wk),'D'),rv:rvol(d)};TRC[sym]=r;return r
+}
+async function scanOne(sym){
+  const cfg=IDX[sym],seg=cfg.seg;if(!M[seg])M[seg]=await Kotak.master(seg);
+  let spot=0;for(const c of cfg.spot){try{const q=await Kotak.quotes([c]);spot=qLtp(q[0]||{});if(spot)break}catch{}await sleep(300)}
+  const now=Date.now()/1000-86400,all0=parseMaster(M[seg],sym),exs=[...new Set(all0.map(r=>r.exp))].filter(e=>e>=now).sort((a,b)=>a-b);if(!exs.length)throw new Error('no expiries found');
+  const ex=exs[0],all=all0.filter(r=>r.exp===ex),ks=[...new Set(all.map(r=>r.k))].sort((a,b)=>a-b),st=Math.min(...ks.slice(1).map((k,i)=>k-ks[i]).filter(d=>d>0)),ctr=spot||ks[Math.floor(ks.length/2)],near=all.filter(r=>Math.abs(r.k-ctr)<=8*st);
+  const qs=await Kotak.quotes(near.map(r=>seg+'|'+r.tok)),by={};qs.forEach(q=>by[qTok(q)]=q);
+  const m={};near.forEach(r=>{const q=by[r.tok]||{};(m[r.k]=m[r.k]||{k:r.k})[r.type==='CE'?'ce':'pe']={oi:qOi(q),ltp:qLtp(q),tok:r.tok,ts:r.ts}});
+  const rows=Object.values(m).filter(r=>r.ce&&r.pe).sort((a,b)=>a.k-b.k);if(rows.length<5)throw new Error('too few strikes');if(!spot){spot=parity(rows);if(!spot)throw new Error('no spot price')}
+  let tr=null,terr='';try{tr=await trendFor(sym)}catch(e){terr=String(e.message||e)}
+  const sST=ST,sTR={...TR};let out;
+  try{ST={rows,spot,key:'scan|'+sym+'|'+ex,fut:null,parity:false};ST.A=analyse(rows,spot);
+    Object.keys(TR).forEach(k=>delete TR[k]);
+    if(tr)Object.assign(TR,{ok:!!(tr.d&&tr.w),err:'',h:tr.h,d:tr.d,w:tr.w,rv:tr.rv,src:'Kotak'});else Object.assign(TR,{ok:false,err:terr||'no candles'});
+    const D=direction(),V=volSignal(ex);out={sym,spot,ex,pcr:ST.A.pcr,D,V,g:suggest(D,V),w:TR.w,d:TR.d,h:TR.h,terr}
+  }finally{ST=sST;Object.keys(TR).forEach(k=>delete TR[k]);Object.assign(TR,sTR)}
+  return out
+}
+let SCN=[];
+function scanHtml(){
+  const tl=x=>x?(x.v>0?'up':x.v<0?'down':'flat'):'-';
+  return SCN.map(r=>r.err?`<div class="pfr"><div class="t"><span>${r.sym}</span><span class="sell">failed</span></div><div class="s"><small>${r.err}</small></div></div>`:
+   `<div class="pfr"><div class="t"><span>${r.sym} <small>${r.spot.toFixed(0)}</small></span><b class="${r.D.call==='Bullish'?'buy':r.D.call==='Bearish'?'sell':''}">${r.D.call}</b></div>
+   <div class="s"><span>PCR ${r.pcr.toFixed(2)} · trend W ${tl(r.w)} · D ${tl(r.d)}${r.d?' (RSI '+r.d.rsi.toFixed(0)+')':''} · H ${tl(r.h)}</span></div>
+   <div class="s"><span>${r.V?'IV '+(r.V.iv*100).toFixed(1)+'% vs realised '+(r.V.rv*100).toFixed(1)+'% ('+r.V.label+')':'volatility: no candles'}</span></div>
+   <div class="s"><span>${r.g?'Suggested: <b>'+r.g.strat+'</b>':'No clear edge'}</span><button class="alt" style="width:auto;margin:0;padding:6px 12px" onclick="scanOpen('${r.sym}')">Open</button></div></div>`).join('')||'<p class="sub">Tap Scan to start.</p>'
+}
+function scanOpen(sym){$('sym').value=sym;chips('sym');pageShow(null);switchIdx()}
+async function scanAll(){
+  if(S.demo){$('scst').textContent='Scanner needs a live login.';return}
+  if(scanAll.busy)return;scanAll.busy=true;$('scgo').textContent='Scanning…';SCN=[];
+  try{for(const sym of Object.keys(IDX)){$('scst').textContent='Scanning '+sym+' ('+(SCN.length+1)+' of '+Object.keys(IDX).length+')…';
+      try{SCN.push(await scanOne(sym))}catch(e){SCN.push({sym,err:String(e.message||e)})}$('sclist').innerHTML=scanHtml();await sleep(800)}
+    $('scst').textContent='Done at '+new Date().toLocaleTimeString('en-IN')+'. Uses a ±8-strike window, so PCR and walls are rougher than on the main chain, and OI buildup is not included.'}
+  finally{scanAll.busy=false;$('scgo').textContent='▶ Scan all indices'}
+}
+async function btBars(sym){let serr='';try{await histSync(sym,'D')}catch(e){serr=String(e.message||e)}
+  const b=(await histLoad(sym,'D')).bars;if(b.length<150)throw new Error(serr||'not enough stored history yet');return b}
+function backtest(bars){
+  const n=bars.length,pos=new Array(n).fill(0);
+  for(let i=120;i<n;i++){const sub=bars.slice(0,i+1),d=tf(sub,'D'),w=tf(grp(sub,wk),'D');if(!d||!w)continue;pos[i]=(w.v>0&&d.v>0&&d.rsi<75)?1:(w.v<0&&d.v<0&&d.rsi>25)?-1:0}
+  let eq=0,peak=0,dd=0,bh=0,inm=0;const trades=[],curve=[],bhc=[];let cur=null;
+  for(let i=120;i<n-1;i++){const r=(bars[i+1].c/bars[i].c-1)*100,p=pos[i];eq+=p*r;bh+=r;curve.push(eq);bhc.push(bh);peak=Math.max(peak,eq);dd=Math.max(dd,peak-eq);
+    if(p!==0){inm++;if(!cur||cur.p!==p){if(cur)trades.push(cur);cur={p,r:0,days:0,from:bars[i].d}}cur.r+=p*r;cur.days++;cur.to=bars[i+1].d}else if(cur){trades.push(cur);cur=null}}
+  if(cur)trades.push(cur);
+  const wins=trades.filter(t=>t.r>0),st=a=>a.length?{n:a.length,win:a.filter(t=>t.r>0).length/a.length*100,avg:a.reduce((t,x)=>t+x.r,0)/a.length}:{n:0,win:0,avg:0};
+  return{trades,curve,bhc,total:eq,bh,dd,exp:inm/Math.max(1,n-121)*100,win:trades.length?wins.length/trades.length*100:0,avg:trades.length?eq/trades.length:0,longs:st(trades.filter(t=>t.p>0)),shorts:st(trades.filter(t=>t.p<0)),from:bars[120]&&bars[120].d,to:bars[n-1].d,days:n-121}
+}
+async function btRun(){
+  if(S.demo){$('btst').textContent='Backtest needs a live login.';return}
+  if(btRun.busy)return;btRun.busy=true;$('btgo').textContent='Running…';const sym=$('sym').value;
+  try{$('btst').textContent='Loading daily candles for '+sym+' (first run takes about 10 seconds)…';const bars=await btBars(sym);
+    if(bars.length<260)throw new Error('only '+bars.length+' daily candles returned; need about 260 or more');
+    $('btst').textContent='Testing '+bars.length+' days…';await sleep(30);const R=backtest(bars),f=v=>(v>=0?'+':'')+v.toFixed(1)+'%',k=(a,b)=>`<div><span>${a}</span><b>${b}</b></div>`;
+    $('btout').innerHTML=`<h2>${sym}: Swing trend rule</h2><p class="sub">${R.from} to ${R.to} (${R.days} trading days)</p><div class="kv">${k('Rule return (index, no costs)',`<span class="${cz(R.total)}" style="color:inherit">${f(R.total)}</span>`)}${k('Buy and hold',f(R.bh))}
+      ${k('Trades',R.trades.length+' ('+R.win.toFixed(0)+'% won)')}${k('Average per trade',f(R.avg))}${k('Max drawdown',R.dd.toFixed(1)+'%')}${k('Time in market',R.exp.toFixed(0)+'%')}
+      ${k('Long trades',R.longs.n+', '+R.longs.win.toFixed(0)+'% won, avg '+f(R.longs.avg))}${k('Short trades',R.shorts.n+', '+R.shorts.win.toFixed(0)+'% won, avg '+f(R.shorts.avg))}</div>
+      <div class="chart" style="margin-top:10px">${lineSvg([{v:R.bhc,c:'--mut'},{v:R.curve,c:'--ok'}])}<p class="sub" style="margin:2px 6px 4px">Green: rule, grey: buy and hold (cumulative % of daily moves)</p></div>
+      <p class="sub" style="margin-top:8px">Rule: go long when weekly and daily trends are up and daily RSI is below 75; go short when both are down and RSI is above 25; otherwise flat. It trades the index with no costs, slippage or option pricing. The RSI levels were chosen before this test, but one index over a few years is a small sample, so treat it as a sanity check, not proof. The option signals cannot be tested because history has no OI or option prices.</p>`;
+    $('btst').textContent='Done.'
+  }catch(e){$('btst').textContent='Backtest failed: '+String(e.message||e)}finally{btRun.busy=false;$('btgo').textContent='▶ Run backtest'}
+}
+ 
+/* ---------- page switching ---------- */
+const PAGES=['pf','stg','scn','bt'];
+function pageShow(id){['ctl','out'].forEach(x=>$(x).classList[id?'add':'remove']('hide'));PAGES.forEach(x=>$(x).classList[x===id?'remove':'add']('hide'));clearInterval(pfT);
+  if(id==='pf'){loadPf();pfT=setInterval(loadPf,20000)}if(id==='stg'){renderSettings();renderHist()}if(id==='scn')$('sclist').innerHTML=scanHtml()}
+const pfShow=on=>pageShow(on?'pf':null);
+chips('sym');chips('mode');chips('pftab');
+$('pfb').onclick=()=>pageShow('pf');$('scnb').onclick=()=>pageShow('scn');$('btb').onclick=()=>pageShow('bt');$('stb').onclick=()=>pageShow('stg');
+['pfback','stback','scback','btback'].forEach(i=>{$(i).onclick=()=>pageShow(null)});
+$('pfref').onclick=loadPf;$('pftab').onchange=renderPf;$('scgo').onclick=scanAll;$('btgo').onclick=btRun;
+['al_on','al_sig','al_be','al_pnl','al_bd','al_tp','al_sl','sz_cap','sz_risk','sz_stop','lmin'].forEach(i=>{$(i).onchange=readSettings});
+$('al_on').addEventListener&&$('al_on').addEventListener('change',()=>{if($('al_on').checked)notify('test','Alerts are on','You will see banners like this.',1)});
+$('al_test').onclick=()=>{ALR.test=0;notify('test','Test alert','This is how alerts look.',1)};
+$('setpin').onclick=setPin;$('rmpin').onclick=rmPin;$('lgo').onclick=tryUnlock;$('lforgot').onclick=forgotPin;
+$('lpin').onkeydown=e=>{if(e&&e.key==='Enter')tryUnlock()};
+if(document.addEventListener)document.addEventListener('visibilitychange',()=>{if(document.hidden)hiddenAt=Date.now();else if(CFG.lock.h&&Date.now()-hiddenAt>CFG.lock.min*60000)lockNow()});
+if(CFG.lock.h)lockNow();
 function saveSess(){try{localStorage.setItem('os_sess',JSON.stringify({d:today(),base:S.base,tok:S.tok,sid:S.sid,feed:S.feed,hs:S.hs}))}catch{}}
 function dropSess(){try{localStorage.removeItem('os_sess')}catch{}}
 function resetUi(msg){
@@ -893,6 +1287,9 @@ async function restoreSession(){
 }
 $('logoutb').onclick=logout;
 try{restoreSession()}catch(e){fail(e)}
+$('hist_sync').onclick=histSyncAll;
+$('hist_clear').onclick=async()=>{if(!confirm('Delete all stored candle history from this phone? It can be downloaded again.'))return;
+  for(const sym of Object.keys(IDX))for(const tf of Object.keys(HD))await idbDel('h|'+sym+'|'+tf);Object.keys(TRC).forEach(k=>delete TRC[k]);histState.msg='Deleted.';histState.err='';renderHist()};
 </script>
  </body>
 </html>
