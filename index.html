@@ -59,6 +59,8 @@ td.c i{right:0;background:var(--ce)}td.p i{left:0;background:var(--pe)}
 #lock{position:fixed;inset:0;z-index:1000;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:20px}#lock .card{width:100%;max-width:380px}
 .chart{margin-top:10px;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:6px}.chart svg{width:100%;height:auto;display:block}
 .chart text{fill:var(--mut);font:10px system-ui,sans-serif}
+.mat{font-size:12.5px}.mat td,.mat th{padding:5px 6px}
+.gal{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}.gc{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:8px;cursor:pointer}.gc.on{border-color:var(--acc);box-shadow:0 0 0 2px rgba(77,141,255,.35)}.gn{font-weight:600;font-size:12.5px;margin-bottom:4px;line-height:1.25}.gc svg{width:100%;height:56px;display:block}.gc small{display:block;font-size:11px;margin-top:3px;line-height:1.3}
 </style>
  </head>
  <body>
@@ -172,6 +174,65 @@ td.c i{right:0;background:var(--ce)}td.p i{left:0;background:var(--pe)}
     <label>Stop for unlimited-risk sells (× credit)</label><input id="sz_stop" inputmode="decimal">
    </div>
    <div class="card">
+    <h2>Live order safety</h2>
+    <p class="sub">These checks run before any live order. The kill switch and loss limit never block a square-off.</p>
+    <label class="chk"><input type="checkbox" id="sf_kill"> Kill switch: block all new live orders</label>
+    <div class="row">
+     <div>
+      <label>Daily loss limit (₹, 0 = off)</label><input id="sf_loss" inputmode="numeric">
+     </div>
+     <div>
+      <label>Price band (% from last price)</label><input id="sf_band" inputmode="decimal">
+     </div>
+    </div>
+    <div class="row">
+     <div>
+      <label>Max lots per order</label><input id="sf_lots" inputmode="numeric">
+     </div>
+     <div>
+      <label>Registered static IP</label><input id="sf_ip" placeholder="e.g. 103.x.x.x">
+     </div>
+    </div>
+    <label class="chk"><input type="checkbox" id="sf_dup"> Warn on a duplicate order within 2 minutes</label> <label class="chk"><input type="checkbox" id="sf_auto"> Send the sell legs by itself once the buy legs are filled</label>
+    <button class="alt" id="sf_chk">Check my public IP now</button>
+    <p id="sf_out" class="sub" style="margin:8px 0 0"></p>
+   </div>
+   <div class="card">
+    <h2>Option chain recording</h2>
+    <p class="sub">While the app is open in market hours, the chain you are viewing (strikes, prices and OI) is saved on this phone, so the option signals can be tested on real data later.</p>
+    <label class="chk"><input type="checkbox" id="rec_on"> Record the chain</label>
+    <div class="row">
+     <div>
+      <label>Every (minutes)</label><input id="rec_min" inputmode="numeric">
+     </div>
+     <div>
+      <label>&nbsp;</label>
+      <button class="alt" id="rec_copy" style="margin-top:0">Copy today as CSV</button>
+     </div>
+    </div>
+    <p id="rec_stat" class="sub" style="margin:8px 0 0"></p>
+   </div>
+   <div class="card">
+    <h2>Signal settings</h2>
+    <p class="sub">Signals use only a fast and a slow moving average and RSI, on monthly, weekly, daily, 1 hour, 15 min and 5 min candles. A timeframe is bullish when fast is above slow and RSI is above 50, bearish for the reverse, and neutral otherwise.</p>
+    <div class="row">
+     <div>
+      <label>Fast period</label><input id="ma_fast" inputmode="numeric">
+     </div>
+     <div>
+      <label>Slow period</label><input id="ma_slow" inputmode="numeric">
+     </div>
+    </div>
+    <div class="row">
+     <div>
+      <label>Average type</label><select id="ma_type"><option>EMA</option><option>SMA</option></select>
+     </div>
+     <div>
+      <label>RSI period</label><input id="ma_rsi" inputmode="numeric">
+     </div>
+    </div>
+   </div>
+   <div class="card">
     <h2>Stored history (on this phone)</h2>
     <p class="sub">Daily candles (about 6 years) and hourly candles (about 3 years) for each index are saved in the phone's database. Each sync fetches only the missing days, and weekly candles are built from the daily ones. The first sync of an index takes a few minutes because of Kotak's rate limit.</p>
     <div id="hist_info" class="sub"></div>
@@ -192,13 +253,22 @@ td.c i{right:0;background:var(--ce)}td.p i{left:0;background:var(--pe)}
    </div>
    <div class="card" id="sclist"></div>
   </div>
+  <div id="anl" class="hide">
+   <div class="card">
+    <div class="row">
+     <button class="alt" id="anlback">← Back</button>
+     <button id="anlref">⟳ Refresh</button>
+    </div>
+    <div id="anlc" style="margin-top:10px"></div>
+   </div>
+  </div>
   <div id="bt" class="hide">
    <div class="card">
     <div class="row">
      <button class="alt" id="btback">← Back</button>
      <button id="btgo">▶ Run backtest</button>
     </div>
-    <p class="sub" id="btst" style="margin:10px 0 0">Tests the Swing trend rule (weekly and daily trend agree, RSI filters) on the selected index over about 3 years of daily candles.</p>
+    <p class="sub" id="btst" style="margin:10px 0 0">Tests the Swing rule (fast/slow average and RSI) (weekly and daily trend agree, RSI filters) on the selected index over about 3 years of daily candles.</p>
    </div>
    <div class="card" id="btout"></div>
   </div>
@@ -209,7 +279,7 @@ td.c i{right:0;background:var(--ce)}td.p i{left:0;background:var(--pe)}
      <button id="pfref">⟳ Refresh</button>
     </div>
     <div class="chips" id="pftabC" style="margin-top:10px"></div>
-    <select id="pftab" class="sr"><option>Holdings</option><option>Positions</option><option>Risk</option><option>Journal</option></select>
+    <select id="pftab" class="sr"><option>Holdings</option><option>Positions</option><option>Orders</option><option>Risk</option><option>Journal</option></select>
     <div id="pfsum" style="margin-top:10px"></div>
    </div>
    <div class="card" id="pflist"></div>
@@ -278,6 +348,8 @@ const Kotak={
   },
   limits(){return http('POST',S.base+'/quick/user/limits'+sid(),this.TH(),{jData:JSON.stringify({seg:'ALL',exch:'ALL',prod:'ALL'})})},
   order(o){return http('POST',S.base+'/quick/order/rule/ms/place'+sid(),this.TH(),{jData:JSON.stringify(o)})},
+  orders(){return http('GET',S.base+'/quick/user/orders',{...this.TH(),accept:'application/json'})},
+  cancel(no){return http('POST',S.base+'/quick/order/cancel'+sid(),this.TH(),{jData:JSON.stringify({on:String(no),am:'NO'})})},
   check(o){return http('POST',S.base+'/quick/user/check-margin'+sid(),this.TH(),{jData:JSON.stringify(o)})}
 };
 const num=v=>{const n=parseFloat(v);return isFinite(n)?n:0};
@@ -365,7 +437,7 @@ function snap(){
   try{localStorage.setItem('os_snap',JSON.stringify({date:today(),data:SNAP}))}catch{}
 }
 function show(rows,spot,note,parityOn,auto,fut){
-  const key=$('sym').value+'|'+$('exp').value;
+  const key=$('sym').value+'|'+$('exp').value;if(!parityOn)recTick($('sym').value,spot,Date.now());
   if(ST&&ST.key===key&&auto&&$('view')){ST.rows=rows;ST.spot=spot;ST.note=note;ST.parity=parityOn;ST.fut=fut||ST.fut;mapRows();paint();fetchExtra();return}
   ST={rows,spot,note,parity:parityOn,key,fut};build();paint();setSpec();drawStrat();buildTicket();mapRows();if(!auto)setMode();fetchExtra()
 }
@@ -373,7 +445,7 @@ function build(){
   const A=analyse(ST.rows,ST.spot),bias=A.pcr>=1.2?'Bullish':A.pcr<=0.8?'Bearish':'Neutral';
   $('out').innerHTML=`<div class="card" id="snap"></div>
   <div class="card"><h2>Strategy</h2><label style="margin-top:0">Market view</label><div class="chips" id="viewC"></div><select id="view" class="sr">${Object.keys(LIB).map(v=>`<option ${v===bias?'selected':''}>${v}</option>`).join('')}</select>
-  <div class="row"><div><label>Strategy</label><select id="strat"></select></div><div style="flex:.45"><label>Lots</label><input id="lots" type="number" min="1" step="1" value="1" inputmode="numeric"></div></div><div class="row" id="frow"><div><label>Horizon</label><div class="chips" id="hzC"></div><select id="hz" class="sr"><option>Intraday</option><option>Swing</option></select></div><div id="hedgeCol" class="hide"><label>Hedge strike</label><select id="hedge"><option value="2">2 steps OTM</option><option value="4">4 steps OTM</option><option value="atm">ATM</option><option value="wall">OI wall</option></select></div></div><div id="sc"></div><div id="mg"></div></div>
+  <div class="row"><div><label>Strategy</label><select id="strat"></select></div><div style="flex:.45"><label>Lots</label><input id="lots" type="number" min="1" step="1" value="1" inputmode="numeric"></div></div><div class="row" id="frow"><div><label>Horizon</label><div class="chips" id="hzC"></div><select id="hz" class="sr"><option>Intraday</option><option>Swing</option></select></div><div id="hedgeCol" class="hide"><label>Hedge strike</label><select id="hedge"><option value="2">2 steps OTM</option><option value="4">4 steps OTM</option><option value="atm">ATM</option><option value="wall">OI wall</option></select></div></div><div id="sgal"></div><div id="sc"></div><div id="mg"></div><button class="alt" id="anlb" style="margin-top:12px">📈 Analyse this strategy</button></div>
   <div class="card" id="tkc"><h2>Order ticket</h2>
   <label style="margin-top:0">Order type</label><div class="chips" id="otypeC"></div><select id="otype" class="sr"><option value="L">Limit</option><option value="MKT">Market</option></select>
   <div class="row"><div><label>Product</label><select id="prod"><option>NRML</option><option>MIS</option></select></div><div><label>Validity</label><select id="val"><option>DAY</option><option>IOC</option></select></div></div>
@@ -385,6 +457,7 @@ function build(){
   <div class="card" id="pp"></div>
   <div class="card scroll"><h2>Chain <small>(call OI · call LTP · strike · put LTP · put OI)</small></h2><table id="chain"></table></div>`;
   $('view').onchange=fillStrat;$('strat').onchange=onStrat;$('lots').oninput=onStrat;
+  $('sgal').onclick=e=>{const g=e.target.closest&&e.target.closest('.gc');if(g&&g.dataset.n)pickStrat(g.dataset.n)};$('anlb').onclick=()=>pageShow('anl');
   $('otype').onchange=()=>{buildTicket()};$('dry').onchange=()=>{$('place').textContent=$('dry').checked?'▶ Preview orders':'⚡ Place orders (LIVE)';$('place').className=$('dry').checked?'':'live'};
   $('place').onclick=place;$('mcheck').onclick=mCheck;$('hedge').onchange=onStrat;$('pbasis').onchange=buildTicket;drawPaper();fillStrat(true);$('hz').value=HZ;$('hz').onchange=()=>{HZ=$('hz').value;try{localStorage.setItem('os_hz',HZ)}catch{}onStrat();chips('hz')};chips('view');chips('otype');chips('hz')
 }
@@ -397,7 +470,7 @@ function paint(){
   <div><span>Put wall (support)</span><b>${A.pw}</b></div><div><span>Call wall (resistance)</span><b>${A.cw}</b></div></div>
   <p class="sub" style="margin:8px 0 0">OI lean: <b>${bias}</b>. ${ST.note||''}</p>`;
   $('chain').innerHTML=ST.rows.map(r=>`<tr class="${r.k===A.atm?'atm':''}"><td class="c"><i style="width:${r.ce.oi/mx*100}%"></i>${n0(r.ce.oi)}</td><td>${r.ce.ltp.toFixed(1)}</td><td class="k">${r.k}</td><td>${r.pe.ltp.toFixed(1)}</td><td class="p"><i style="width:${r.pe.oi/mx*100}%"></i>${n0(r.pe.oi)}</td></tr>`).join('');
-  snap();paperTick();drawPaper();checkAlerts();if($('sc')&&ST.spec!==undefined){drawStrat();
+  snap();paperTick();drawPaper();checkAlerts();try{recordChain()}catch{}if($('sc')&&ST.spec!==undefined){drawStrat();
     if($('view').value==='Futures + hedge'&&/^Auto/.test($('strat').value)&&!ST.err){
       const c=direction().call;
       if(c!==ST.specDir){if(!ST.pend||ST.pend.call!==c)ST.pend={call:c,t:Date.now()};
@@ -420,7 +493,7 @@ function setSpec(){
   }catch(e){ST.spec=null;ST.err=e.message}
 }
 function qtyNow(){const l=Math.max(1,Math.floor(+$('lots').value||1));return{l,q:l*(LOT[$('sym').value]||1)}}
-let CT={key:'',ks:[],byK:{}};
+let CT={key:'',ks:[],byK:{}};const LASTORD={},LASTNOS=[];
 let HZ='Intraday';try{HZ=localStorage.getItem('os_hz')||'Intraday'}catch{}
 const TR={ok:false,err:'loading candles…'},FII={ok:false,err:'loading…'};
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -463,7 +536,7 @@ async function trendKotak(){
   if(S.demo||trBusy||!S.base)return;trBusy=true;
   try{
     const sym=$('sym').value,prog=n=>{TR.err='syncing '+sym+' history, '+n+' candles so far (first time only)';if(ST&&$('sc')&&ST.spec!==undefined)drawStrat()};let serr='';
-    try{await histSync(sym,'D',false,prog);await histSync(sym,'60min',false,prog)}catch(e){serr=String(e.message||e)}
+    serr=await ensureHist(sym,prog)
     const d=(await histLoad(sym,'D')).bars,h=(await histLoad(sym,'60min')).bars;
     if(d.length<60)throw new Error(/429|rate limit|too many/i.test(serr)?'Kotak rate limit hit; retrying in 1 minute':(serr||'no stored history yet'));
     TR.h=tf(h.slice(-300),'H');TR.d=tf(d,'D');TR.w=tf(grp(d,wk),'D');TR.rv=rvol(d);
@@ -491,10 +564,7 @@ async function trendYahoo(){
 }
 async function loadTrend(){
   if(S.demo||!S.base||trBusy)return;
-  if(!S.histBad){await trendKotak();
-    if(TR.ok||/429|rate limit|too many|loading|so far/i.test(TR.err||''))return;
-    S.kerr=String(TR.err||'').slice(0,200);S.histBad=true}
-  await trendYahoo()
+  await trendKotak()
 }
 function parseFII(t){
   const L=String(t).split(/\r?\n/).map(x=>x.split(',').map(s=>s.trim())),hi=L.findIndex(r=>/client type/i.test(r[0]));if(hi<0)return null;
@@ -566,26 +636,22 @@ function atmIV(ex){
   return a.length?{iv:a.reduce((x,y)=>x+y,0)/a.length,T,F}:null
 }
 function volSignal(ex){const a=atmIV(ex),iv=a&&a.iv;if(!iv||!TR.rv)return null;const ratio=iv/TR.rv;return{iv,days:a.T*365,rv:TR.rv,ratio,label:ratio>=1.15?'rich':ratio<=0.85?'cheap':'fair'}}
-function suggest(D,V){
-  const cheap=V&&V.label==='cheap',rich=V&&V.label==='rich',vt='';
-  if(D.call==='Bullish')return{view:'Bullish',strat:cheap?'Bull call spread':'Bull put spread',why:'Direction is bullish.'+vt+(cheap?' Cheap options favour paying a debit spread.':' A credit spread collects the premium.')};
-  if(D.call==='Bearish')return{view:'Bearish',strat:cheap?'Bear put spread':'Bear call spread',why:'Direction is bearish.'+vt+(cheap?' Cheap options favour paying a debit spread.':' A credit spread collects the premium.')};
-  if(rich)return{view:'Neutral',strat:'Iron condor',why:'No clear direction, and options are priced above recent realised moves, so selling premium within the OI walls has an edge.'+vt};
-  if(cheap)return{view:'Volatile',strat:'Long straddle',why:'No clear direction, and options are cheap against recent realised moves, so buying volatility has an edge.'+vt};
+function suggest(D){
+  if(D.call==='Bullish')return{view:'Bullish',strat:'Bull put spread',why:'Both timeframes show a bullish fast over slow average with RSI above 50. A bull put spread keeps its limit if the index stays above the short put.'};
+  if(D.call==='Bearish')return{view:'Bearish',strat:'Bear call spread',why:'Both timeframes show a bearish fast under slow average with RSI below 50. A bear call spread keeps its limit if the index stays below the short call.'};
+  if(D.range)return{view:'Neutral',strat:'Iron condor',why:'No trend, and daily and 1 hour RSI are both between 40 and 60 (sideways), so an iron condor within the OI walls is a candidate.'};
   return null
 }
-function sigBlock(v,D,V){
-  const g=ST.sugg=suggest(D,V),dc=D.call==='Bullish'?'buy':D.call==='Bearish'?'sell':'';
-  let m;if(!g)m='No clear edge from direction or volatility. Staying out is a valid result.';
-  else if(v===g.view)m='<b class="buy">Your view matches the signal.</b>';
-  else m='<b class="sell">Your view is not what the signal suggests.</b>';
-  return `<div style="margin-top:8px"><small>SIGNAL (${HZ})</small>
-  <div class="leg"><span>Direction <small>${D.why.length?D.why[0]:'option signals agree with the trend'}</small></span><b class="${dc}">${D.call}</b></div>
-  <div class="leg"><span>Volatility <small>${V?'ATM IV '+(V.iv*100).toFixed(1)+'% vs 20-day realised '+(V.rv*100).toFixed(1)+'%':'waiting for daily candles'}</small></span><b>${V?V.label:'-'}</b></div>
- 
+function sigBlock(v,D){
+  const g=ST.sugg=suggest(D);let m;
+  if(!g)m='No clear edge from the moving averages and RSI. Staying out is a valid result.';
+  else if(v===g.view)m='<b class="buy">Your view matches the signal.</b>';else m='<b class="sell">Your view is not what the signal suggests.</b>';
+  return `<div style="margin-top:8px"><small>FAST AND SLOW MOVING AVERAGE, RSI ${TR.src?'· candles: '+TR.src:''}</small>${maTableHtml(D.rows)}
+  <p style="margin:8px 0 0">Signal (${D.hz}): <b class="${D.call==='Bullish'?'buy':D.call==='Bearish'?'sell':''}">${D.call}</b> <small>· Intraday ${D.intra.call} · Swing ${D.swing.call}</small></p>
+  ${D.why.length?`<p class="sub" style="margin:4px 0 0">${D.why.join(' ')}</p>`:''}
   <p style="margin:8px 0 0">${g?`Suggested: <b>${g.strat}</b> (${g.view} view). <small>${g.why}</small>`:''} ${m}</p>
   ${g&&(v!==g.view||$('strat').value!==g.strat)?`<button class="alt" onclick="useSugg()">Use ${g.strat}</button>`:''}
-  <p class="sub" style="margin:6px 0 0">Heuristics from open interest, daily and hourly trend, and implied versus realised volatility. They do not predict the market reliably.</p></div>`
+  <p class="sub" style="margin:6px 0 0">Based only on fast and slow moving averages and RSI. They lag the market and do not predict it reliably.</p></div>`
 }
 function useSugg(){const g=ST&&ST.sugg;if(!g)return;$('view').value=g.view;chips('view');if($('view').onchange)$('view').onchange();$('strat').value=g.strat;onStrat()}
 function legGk(x,F,T,sig0){
@@ -597,46 +663,144 @@ const stg=d=>c=>{if(!c.move)throw new Error('Option prices are needed to size th
   const m=d==='1'||d==='2'?+d*c.move:+d;return[['SELL',c.snAll(c.spot+m),'CE'],['SELL',c.snAll(c.spot-m),'PE']]};
 LIB.Neutral['Short strangle · 1σ']=stg('1');LIB.Neutral['Short strangle · 2σ']=stg('2');
 [500,1000,1500,2000,2500,3000,3500,4000,4500,5000].forEach(p=>{LIB.Neutral['Short strangle · '+p+' pts']=stg(p)});
-async function fetchExtra(){
-  if(!ST||!ST.spec||S.demo)return;
-  const seg=IDX[$('sym').value].seg,need=[];
-  ST.spec.forEach(([d,k,t])=>{if(t==='FUT'||ST.rows.some(r=>r.k===k))return;const c=CT.byK[k]&&CT.byK[k][t];if(c)need.push({k,t,c})});
+async function fetchExtra(lists,onlyMissing){
+  const L=lists||(ST&&ST.spec?[ST.spec]:[]);if(!ST||!L.length||S.demo)return;
+  const seg=IDX[$('sym').value].seg,need=[],seen={};
+  L.forEach(sp=>sp.forEach(([d,k,t])=>{if(t==='FUT'||ST.rows.some(r=>r.k===k))return;const id=k+t;if(seen[id])return;seen[id]=1;
+    const c=CT.byK[k]&&CT.byK[k][t];if(!c)return;const have=ST.extra&&ST.extra[k]&&ST.extra[k][t==='CE'?'ce':'pe'];if(onlyMissing&&have)return;need.push({k,t,c})}));
   if(!need.length)return;
   try{const qs=await Kotak.quotes(need.map(n=>seg+'|'+n.c.tok)),by={};qs.forEach(q=>by[qTok(q)]=q);
     ST.extra=ST.extra||{};ST.xt=ST.xt||{};let first=false;
     need.forEach(n=>{const q=by[n.c.tok]||{},side=n.t==='CE'?'ce':'pe',row=ST.extra[n.k]=ST.extra[n.k]||{k:n.k};if(!row[side])first=true;
       const o=row[side]=row[side]||{};Object.assign(o,{oi:qOi(q),ltp:qLtp(q),bid:qBid(q),ask:qAsk(q),l0:qLtp(q),tok:n.c.tok,ts:n.c.ts});ST.xt[n.c.tok]=o});
-    drawStrat();if(first)buildTicket()}catch{}
+    drawStrat();if(first){buildTicket();if(lists)drawGallery(true)}}catch{}
+}
+function specCtx(){
+  const A=analyse(ST.rows,ST.spot),c={atm:A.atm,pw:A.pw,cw:A.cw,s:A.s,sn:k=>A.ks.reduce((b,x)=>Math.abs(x-k)<Math.abs(b-k)?x:b),hedge:$('hedge')?$('hedge').value:'2',spot:ST.spot};
+  c.snAll=k=>(CT.key===ST.key&&CT.ks.length?CT.ks:A.ks).reduce((b,x)=>Math.abs(x-k)<Math.abs(b-k)?x:b);
+  const a=atmIV();c.move=a?a.F*a.iv*Math.sqrt(a.T):null;return c
+}
+function legsFromSpec(spec){
+  return spec.map(([d,k,t])=>{
+    if(t==='FUT'){const f=ST.fut||{};return{d,k:f.ltp||0,t,p:f.ltp||0,bid:f.bid||0,ask:f.ask||0,ts:f.ts,tok:f.tok}}
+    const o=(ST.rows.find(r=>r.k===k)||(ST.extra&&ST.extra[k])||{})[t==='CE'?'ce':'pe']||{};return{d,k,t,p:o.ltp||0,bid:o.bid||0,ask:o.ask||0,ts:o.ts,tok:o.tok}})
+}
+let miniN=0;
+function miniSvg(legs,q,spot,P,move){
+  const id=++miniN,W=150,H=56,ks=legs.map(l=>l.k).filter(k=>k>0),mv=move||spot*0.03;
+  let lo=Math.min(spot-mv*2.5,...ks.map(k=>k-mv*0.3)),hi=Math.max(spot+mv*2.5,...ks.map(k=>k+mv*0.3));(P.be||[]).forEach(b=>{lo=Math.min(lo,b-mv*0.3);hi=Math.max(hi,b+mv*0.3)});
+  lo=Math.max(lo,spot*0.6);hi=Math.min(hi,spot*1.5);
+  const N=60,xs=[],ys=[];for(let i=0;i<=N;i++){const x=lo+(hi-lo)*i/N;xs.push(x);ys.push(pay(legs,x)*q)}
+  let mn=Math.min(...ys,0),mx=Math.max(...ys,0);if(mx-mn<1){mx+=1;mn-=1}
+  const X=x=>2+(x-lo)/(hi-lo)*(W-4),Y=y=>3+(mx-y)/(mx-mn)*(H-6),y0=Y(0),pts=xs.map((x,i)=>X(x).toFixed(1)+','+Y(ys[i]).toFixed(1)),
+    area='M'+X(lo).toFixed(1)+','+y0.toFixed(1)+' L'+pts.join(' L')+' L'+X(hi).toFixed(1)+','+y0.toFixed(1)+' Z';
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><defs><clipPath id="mu${id}"><rect x="0" y="0" width="${W}" height="${Math.max(0,y0).toFixed(1)}"/></clipPath><clipPath id="md${id}"><rect x="0" y="${y0.toFixed(1)}" width="${W}" height="${H}"/></clipPath></defs>
+  <path d="${area}" clip-path="url(#mu${id})" style="fill:var(--ok);opacity:.4"/><path d="${area}" clip-path="url(#md${id})" style="fill:var(--bad);opacity:.4"/>
+  <line x1="0" x2="${W}" y1="${y0.toFixed(1)}" y2="${y0.toFixed(1)}" style="stroke:var(--mut);stroke-width:.6"/>
+  <polyline points="${pts.join(' ')}" style="fill:none;stroke:var(--ink);stroke-width:1.4"/>
+  <line x1="${X(spot).toFixed(1)}" x2="${X(spot).toFixed(1)}" y1="0" y2="${H}" style="stroke:var(--acc);stroke-width:.8;stroke-dasharray:2 2"/></svg>`
+}
+let galT=0,galKey='';
+function drawGallery(force){
+  const el=$('sgal');if(!el||!ST||!ST.rows)return;
+  const v=$('view').value,sel=$('strat').value,{l:lots,q}=qtyNow(),key=v+'|'+sel+'|'+lots;
+  if(!force&&key===galKey&&Date.now()-galT<4000)return;galT=Date.now();galKey=key;
+  let c;try{c=specCtx();if(v==='Futures + hedge')c.dir=direction()}catch{return}
+  const spot=ST.spot,names=Object.keys(LIB[v]),specs=names.map(nm=>{try{return LIB[v][nm](c)}catch{return null}});
+  fetchExtra(specs.filter(x=>x&&x.length),true);
+  const cards=names.map((nm,i)=>{const sp=specs[i],on=nm===sel?' on':'',a=nm.replace(/"/g,'&quot;');
+    if(!sp||!sp.length)return `<div class="gc"><div class="gn">${nm}</div><small>no setup right now</small></div>`;
+    const legs=legsFromSpec(sp);
+    if(legs.some(l=>l.t!=='FUT'&&!(l.p>0)))return `<div class="gc${on}" data-n="${a}"><div class="gn">${nm}</div><small>loading prices…</small></div>`;
+    const P=profile(legs),net=legs.filter(x=>x.t!=='FUT').reduce((t,x)=>t+(x.d==='SELL'?x.p:-x.p),0);
+    return `<div class="gc${on}" data-n="${a}"><div class="gn">${nm}</div>${miniSvg(legs,q,spot,P,c.move)}<small>${net>=0?'Credit':'Debit'} ${inr(Math.abs(net)*q)} · Profit ${inr(P.mx*q)} · Loss ${inr(-P.mn*q)}</small></div>`}).join('');
+  el.innerHTML=`<label>Tap a payoff to select that strategy</label><div class="gal">${cards}</div>`
+}
+function pickStrat(nm){$('strat').value=nm;onStrat();drawGallery(true)}
+function analyseSvg(legs,q,spot,mv,P,today){
+  const W=340,H=210,pl=44,pr=8,pt=14,pb=26,ks=legs.map(l=>l.k).filter(k=>k>0);
+  let lo=Math.min(spot-mv*2.6,...ks.map(k=>k-mv*0.3)),hi=Math.max(spot+mv*2.6,...ks.map(k=>k+mv*0.3));(P.be||[]).forEach(b=>{lo=Math.min(lo,b-mv*0.4);hi=Math.max(hi,b+mv*0.4)});lo=Math.max(lo,spot*0.5);hi=Math.min(hi,spot*1.6);
+  const N=140,xs=[],ye=[],yt=[];for(let i=0;i<=N;i++){const x=lo+(hi-lo)*i/N;xs.push(x);ye.push(pay(legs,x)*q);if(today)yt.push(today(x))}
+  let mn=Math.min(...ye,...yt,0),mx=Math.max(...ye,...yt,0);if(mx-mn<1){mx+=1;mn-=1}const rg=(mx-mn)*0.08;mx+=rg;mn-=rg;
+  const X=x=>pl+(x-lo)/(hi-lo)*(W-pl-pr),Y=y=>pt+(mx-y)/(mx-mn)*(H-pt-pb),y0=Y(0),pe=xs.map((x,i)=>X(x).toFixed(1)+','+Y(ye[i]).toFixed(1)),pt2=today?xs.map((x,i)=>X(x).toFixed(1)+','+Y(yt[i]).toFixed(1)):[];
+  const area='M'+X(lo).toFixed(1)+','+y0.toFixed(1)+' L'+pe.join(' L')+' L'+X(hi).toFixed(1)+','+y0.toFixed(1)+' Z',bx=Math.max(X(spot-mv),pl),bw=Math.min(X(spot+mv),W-pr)-bx,f=v=>Math.abs(v)>=1e5?(v/1e5).toFixed(1)+'L':Math.abs(v)>=1e3?(v/1e3).toFixed(1)+'k':v.toFixed(0);
+  return `<svg viewBox="0 0 ${W} ${H}"><defs><clipPath id="anu"><rect x="0" y="0" width="${W}" height="${Math.max(0,y0).toFixed(1)}"/></clipPath><clipPath id="and"><rect x="0" y="${y0.toFixed(1)}" width="${W}" height="${H}"/></clipPath></defs>
+  <rect x="${bx.toFixed(1)}" y="${pt}" width="${Math.max(0,bw).toFixed(1)}" height="${H-pt-pb}" style="fill:var(--acc);opacity:.10"/>
+  <path d="${area}" clip-path="url(#anu)" style="fill:var(--ok);opacity:.33"/><path d="${area}" clip-path="url(#and)" style="fill:var(--bad);opacity:.33"/>
+  <line x1="${pl}" x2="${W-pr}" y1="${y0.toFixed(1)}" y2="${y0.toFixed(1)}" style="stroke:var(--mut);stroke-width:1"/>
+  <polyline points="${pe.join(' ')}" style="fill:none;stroke:var(--ink);stroke-width:1.8"/>
+  ${today?`<polyline points="${pt2.join(' ')}" style="fill:none;stroke:var(--acc);stroke-width:1.6;stroke-dasharray:4 3"/>`:''}
+  <line x1="${X(spot).toFixed(1)}" x2="${X(spot).toFixed(1)}" y1="${pt}" y2="${H-pb}" style="stroke:var(--acc);stroke-width:1;stroke-dasharray:3 3"/>
+  ${(P.be||[]).map(b=>`<circle cx="${X(b).toFixed(1)}" cy="${y0.toFixed(1)}" r="3.5" style="fill:var(--amb)"/><text x="${X(b).toFixed(1)}" y="${(y0-7).toFixed(1)}" text-anchor="middle" style="font-size:9px;fill:var(--amb)">${b.toFixed(0)}</text>`).join('')}
+  <text x="${pl-4}" y="${(pt+8)}" text-anchor="end">${f(mx)}</text><text x="${pl-4}" y="${H-pb}" text-anchor="end">${f(mn)}</text>
+  <text x="${pl}" y="${H-8}">${lo.toFixed(0)}</text><text x="${X(spot).toFixed(1)}" y="${H-8}" text-anchor="middle">spot ${spot.toFixed(0)}</text><text x="${W-pr}" y="${H-8}" text-anchor="end">${hi.toFixed(0)}</text></svg>`
+}
+function renderAnalyse(){
+  const el=$('anlc');if(!el)return;
+  if(!ST||!ST.mg||!ST.legs||!ST.legs.length){el.innerHTML='<p class="sub">Pick a strategy on the main screen first, then tap Analyse.</p>';return}
+  const{legs,P,q}=ST.mg,spot=ST.spot,MS=ST.MS,mv=MS?MS.move:spot*0.03,name=$('strat').value,{l:lots}=qtyNow(),exp=+$('exp').value;
+  const net=legs.filter(x=>x.t!=='FUT').reduce((t,x)=>t+(x.d==='SELL'?x.p:-x.p),0),GK=MS?legs.map(x=>legGk(x,MS.F,MS.days/365,MS.sig)):null;
+  const T0=MS?MS.days/365:0,F0=MS?MS.F:spot,df=Math.exp(-RF*T0);
+  const today=MS?S1=>{const F1=S1*F0/spot;let t=0;legs.forEach((x,i)=>{const sg=x.d==='BUY'?1:-1;if(x.t==='FUT')t+=sg*(S1-x.k);else{const iv=(GK&&GK[i].iv)||MS.sig;t+=sg*(df*b76(F1,x.k,Math.max(T0,1e-6),iv,x.t==='CE')-x.p)}});return t*q}:null;
+  const sgn=v=>(v>=0?'+':'-')+inr(Math.abs(v)),cl=v=>v>0.5?'buy':v<-0.5?'sell':'';
+  const nd=GK?legs.reduce((t,x,i)=>t+(x.d==='BUY'?1:-1)*GK[i].delta,0):null;
+  const tiles=[['Net '+(net>=0?'credit':'debit'),inr(Math.abs(net)*q)],['Max profit',inr(P.mx*q)],['Max loss',inr(-P.mn*q)],['Probability of profit',MS?(MS.pop*100).toFixed(0)+'%':'-'],['1σ range at expiry',MS?(spot-mv).toFixed(0)+' – '+(spot+mv).toFixed(0):'-'],['Net delta',nd==null?'-':(nd>=0?'+':'')+nd.toFixed(2)]];
+  const levels=[-10,-7.5,-5,-4,-3,-2,-1,0,1,2,3,4,5,7.5,10].map(p=>({S:spot*(1+p/100),tag:p===0?'spot':''}));(P.be||[]).forEach(b=>levels.push({S:b,tag:'breakeven'}));levels.sort((a,b)=>a.S-b.S);
+  const rows=levels.map(L=>{const e=pay(legs,L.S)*q,t=today?today(L.S):null,mvp=(L.S/spot-1)*100;
+    return `<tr${L.tag?' style="font-weight:700"':''}><td style="text-align:left">${L.S.toFixed(0)}${L.tag?' <small>'+L.tag+'</small>':''}</td><td>${(mvp>=0?'+':'')+mvp.toFixed(1)}%</td><td class="${cl(e)}">${sgn(e)}</td><td class="${t==null?'':cl(t)}">${t==null?'-':sgn(t)}</td></tr>`}).join('');
+  const beRows=(P.be||[]).map(b=>`<tr><td style="text-align:left">${b.toFixed(0)}</td><td>${(b-spot>=0?'+':'')+(b-spot).toFixed(0)} pts</td><td>${(b-spot>=0?'+':'')+((b/spot-1)*100).toFixed(2)}%</td><td>${MS?((b-spot)/mv>=0?'+':'')+((b-spot)/mv).toFixed(2)+'σ':'-'}</td></tr>`).join('')||'<tr><td colspan="4"><small>no breakeven inside the tested range</small></td></tr>';
+  const legRows=legs.map((x,i)=>`<tr><td style="text-align:left" class="${x.d==='BUY'?'buy':'sell'}">${x.d} ${x.t==='FUT'?'FUT':x.k+' '+x.t}</td><td>${x.p.toFixed(2)}</td><td>${GK&&GK[i].iv?(GK[i].iv*100).toFixed(1)+'%':'-'}</td><td>${GK?(GK[i].delta>=0?'+':'')+GK[i].delta.toFixed(2):'-'}</td></tr>`).join('');
+  el.innerHTML=`<h2>${name}</h2><p class="sub">${$('view').value} · ${$('sym').value} · ${lots} lot${lots>1?'s':''} (${q} qty)${exp>1e9?' · expiry '+fmtD(exp):''}</p>
+  <div class="chart">${analyseSvg(legs,q,spot,mv,P,today)}<p class="sub" style="margin:2px 6px 4px">Black line: profit or loss at expiry. Dashed blue: today's value if the index moved at once and volatility stayed the same (model). Orange dots: breakevens. Blue band: ±1σ.</p></div>
+  <div class="kv" style="margin-top:10px">${tiles.map(t=>`<div><span>${t[0]}</span><b style="font-size:16px">${t[1]}</b></div>`).join('')}</div>
+  <h2 style="margin-top:14px">Breakeven table</h2><div class="scroll"><table class="mat"><tr><th style="text-align:left">Breakeven</th><th>From spot</th><th>%</th><th>σ</th></tr>${beRows}</table></div>
+  <h2 style="margin-top:14px">Profit and loss by index level</h2><div class="scroll"><table class="mat"><tr><th style="text-align:left">Index</th><th>Move</th><th>At expiry</th><th>Today (model)</th></tr>${rows}</table></div>
+  <h2 style="margin-top:14px">Legs</h2><div class="scroll"><table class="mat"><tr><th style="text-align:left">Leg</th><th>Price</th><th>IV</th><th>Delta</th></tr>${legRows}</table></div>
+  <p class="sub" style="margin-top:8px">All figures use current prices and ignore charges. The probability and the today column come from a model with the at-the-money implied volatility, and are estimates, not forecasts.</p>`
 }
 function hk(c,side){const h=c.hedge;if(h==='wall')return side==='put'?c.pw:c.cw;if(h==='atm')return c.atm;const n=+h||2;return c.sn(side==='put'?c.atm-n*c.s:c.atm+n*c.s)}
-function direction(){
-  const A=ST.A,spot=ST.spot,sig=[],arr=SNAP[ST.key]||[],now=Date.now();
-  let bs=arr.find(x=>now-x.t<=1800000&&now-x.t>=300000);if(!bs&&arr[0]&&now-arr[0].t>=300000)bs=arr[0];if(!bs&&PSNAP[ST.key])bs=PSNAP[ST.key];
-  sig.push({n:'PCR (OI)',v:A.pcr>=1.2?1:A.pcr<=0.8?-1:0,t:'PCR '+A.pcr.toFixed(2)});
-  const md=(A.mp-spot)/spot*100;
-  sig.push({n:'Max pain',v:md>=0.25?1:md<=-0.25?-1:0,t:`${A.mp}, ${Math.abs(md).toFixed(2)}% ${md>=0?'above':'below'} spot`});
-  const dS=Math.max(0,spot-A.pw),dR=Math.max(0,A.cw-spot);
-  sig.push({n:'OI walls',v:dR>dS*1.5?1:dS>dR*1.5?-1:0,t:`support ${A.pw} (${dS.toFixed(0)} below), resistance ${A.cw} (${dR.toFixed(0)} above)`});
-  if(bs){let dp=0,dc=0,tot=0;
-    ST.rows.forEach(r=>{tot+=r.ce.oi+r.pe.oi;if(r.k<=A.atm&&bs.pe[r.k]!=null)dp+=r.pe.oi-bs.pe[r.k];if(r.k>=A.atm&&bs.ce[r.k]!=null)dc+=r.ce.oi-bs.ce[r.k]});
-    const net=tot?(dp-dc)/tot*100:0;
-    sig.push({n:'OI buildup',v:net>=1?1:net<=-1?-1:0,t:`puts at/below ATM ${dp>=0?'+':''}${n0(dp)}, calls at/above ATM ${dc>=0?'+':''}${n0(dc)} ${now-bs.t>43200000?'vs previous session':'over '+Math.round((now-bs.t)/60000)+' min'}`})}
-  else sig.push({n:'OI buildup',v:null,t:'collecting OI history (needs 5 minutes of data)'});
-  const av=sig.filter(x=>x.v!==null),bull=av.filter(x=>x.v>0).length,bear=av.filter(x=>x.v<0).length;
-  return finalDir({sig,bull,bear,n:av.length,opt:bull>=3&&bear===0?'Bullish':bear>=3&&bull===0?'Bearish':'No trade'})
+const MONTH=b=>b.d.slice(0,7);
+function maOf(c,n,type){if(c.length<n)return null;if(type==='SMA'){let t=0;for(let i=c.length-n;i<c.length;i++)t+=c[i];return t/n}const e=ema(c,n);return e[e.length-1]}
+function maRow(label,bars){const c=bars.map(b=>b.c),M=CFG.ma,f=maOf(c,M.fast,M.type),sl=maOf(c,M.slow,M.type),r=rsi(c,M.rsi);
+  if(f==null||sl==null||r==null)return{tf:label,ok:false,n:c.length};
+  return{tf:label,ok:true,fast:f,slow:sl,rsi:r,v:f>sl&&r>50?1:f<sl&&r<50?-1:0,last:c[c.length-1],n:c.length}}
+function maRows(sym){const D=liveBars(sym,'D');
+  return[maRow('Monthly',grp(D,MONTH)),maRow('Weekly',grp(D,wk)),maRow('Daily',D),maRow('1 hour',liveBars(sym,'60min')),maRow('15 min',liveBars(sym,'15min')),maRow('5 min',liveBars(sym,'5min'))]}
+function decideCall(hz,g){
+  const why=[];let call='No trade';
+  const need=hz==='Intraday'?['15 min','1 hour']:['Daily','Weekly'],miss=need.filter(n=>!g(n).ok);
+  if(miss.length)return{call,why:['Waiting for '+miss.join(' and ')+' candles (see Settings, Stored history).']};
+  if(hz==='Intraday'){const a=g('15 min').v,b=g('1 hour').v,c=g('5 min').ok?g('5 min').v:0,h=g('1 hour');
+    if(a>0&&b>0&&c>=0)call='Bullish';else if(a<0&&b<0&&c<=0)call='Bearish';else why.push('15 min, 1 hour and 5 min do not agree.');
+    if(call==='Bullish'&&h.rsi>70){call='No trade';why.push('1 hour RSI '+h.rsi.toFixed(0)+' is above 70 (overbought), so no new long.')}
+    if(call==='Bearish'&&h.rsi<30){call='No trade';why.push('1 hour RSI '+h.rsi.toFixed(0)+' is below 30 (oversold), so no new short.')}}
+  else{const d=g('Daily').v,w=g('Weekly').v,m=g('Monthly').ok?g('Monthly').v:0,dd=g('Daily');
+    if(d>0&&w>0&&m>=0)call='Bullish';else if(d<0&&w<0&&m<=0)call='Bearish';else why.push('Daily, weekly and monthly do not agree.');
+    if(call==='Bullish'&&dd.rsi>75){call='No trade';why.push('Daily RSI '+dd.rsi.toFixed(0)+' is above 75 (overbought), so no new long.')}
+    if(call==='Bearish'&&dd.rsi<25){call='No trade';why.push('Daily RSI '+dd.rsi.toFixed(0)+' is below 25 (oversold), so no new short.')}}
+  return{call,why}
+}
+function direction(sym){
+  sym=sym||$('sym').value;const rows=maRows(sym),g=n=>rows.find(r=>r.tf===n)||{ok:false},I=decideCall('Intraday',g),W=decideCall('Swing',g),X=HZ==='Intraday'?I:W;
+  const dr=g('Daily'),hr=g('1 hour'),range=X.call==='No trade'&&dr.ok&&hr.ok&&dr.rsi>=40&&dr.rsi<=60&&hr.rsi>=40&&hr.rsi<=60;
+  return{call:X.call,why:X.why,hz:HZ,rows,intra:I,swing:W,range,opt:'-',sig:[],trend:[],fii:null}
+}
+function maTableHtml(rows){
+  const f=v=>v==null?'-':v>=1000?v.toFixed(0):v.toFixed(2),M=CFG.ma;
+  return `<div class="scroll"><table class="mat"><tr><th style="text-align:left">Timeframe</th><th>Fast ${M.type} ${M.fast}</th><th>Slow ${M.type} ${M.slow}</th><th>RSI ${M.rsi}</th><th>Signal</th></tr>`+
+   rows.map(r=>r.ok?`<tr><td style="text-align:left">${r.tf}</td><td>${f(r.fast)}</td><td>${f(r.slow)}</td><td class="${r.rsi>70?'sell':r.rsi<30?'buy':''}">${r.rsi.toFixed(0)}</td><td class="${r.v>0?'buy':r.v<0?'sell':''}"><b>${r.v>0?'Bullish':r.v<0?'Bearish':'Neutral'}</b></td></tr>`:
+    `<tr><td style="text-align:left">${r.tf}</td><td colspan="4"><small>${r.n?'needs more candles ('+r.n+')':'no candles stored yet'}</small></td></tr>`).join('')+'</table></div>'
 }
 function dirHtml(d){
-  const cls=d.call==='Bullish'?'buy':d.call==='Bearish'?'sell':'',row=(n,v,t)=>`<div class="leg"><span>${n} <small>${t}</small></span><b class="${v>0?'buy':v<0?'sell':''}">${v==null?'waiting':v>0?'Bullish':v<0?'Bearish':'Neutral'}</b></div>`;
-  return `<div style="margin-top:8px"><small>OPTION DATA (${d.opt})</small>${d.sig.map(x=>row(x.n,x.v,x.t)).join('')}
-  <small>TREND (candles${TR.src?' · '+TR.src:''})</small>${S.kerr&&/Yahoo/.test(TR.src||'')?`<small style="display:block;color:var(--bad)">Kotak history failed: ${String(S.kerr).replace(/</g,'&lt;')}</small>`:''}${d.trend.map(x=>row(x.n,x.v,x.t)).join('')}
-  <small>FII POSITIONING</small>${d.fii?row('FII futures',d.fii.v,d.fii.t):''}</div>
-  <p style="margin:8px 0 0">Signal (${d.hz}): <b class="${cls}">${d.call}</b></p>
+  const cls=c=>c==='Bullish'?'buy':c==='Bearish'?'sell':'';
+  return `<div style="margin-top:8px"><small>FAST AND SLOW MOVING AVERAGE, RSI ${TR.src?'· candles: '+TR.src:''}</small>${maTableHtml(d.rows)}</div>
+  <p style="margin:8px 0 0">Signal (${d.hz}): <b class="${cls(d.call)}">${d.call}</b> <small>· Intraday <span class="${cls(d.intra.call)}">${d.intra.call}</span> · Swing <span class="${cls(d.swing.call)}">${d.swing.call}</span></small></p>
   ${d.why.length?`<p class="sub" style="margin:4px 0 0">${d.why.join(' ')}</p>`:''}
-  <p class="sub" style="margin:4px 0 0">${d.hz==='Intraday'?'Intraday: option signals must agree with the hourly and daily trend.':'Swing: weekly and daily trends must agree, and option signals must not oppose them.'} Daily RSI above 75 blocks new longs and below 25 blocks new shorts. These are heuristics and do not predict the market reliably; the screen stays out when they disagree.</p>`
+  <p class="sub" style="margin:4px 0 0">${d.hz==='Intraday'?'Intraday: 15 min and 1 hour must agree (fast above slow with RSI above 50, or the reverse) and 5 min must not oppose. 1 hour RSI above 70 blocks new longs, below 30 blocks new shorts.':'Swing: daily and weekly must agree and monthly must not oppose. Daily RSI above 75 blocks new longs, below 25 blocks new shorts.'} Moving averages lag the market, so these signals can be late or wrong.</p>`
 }
 function drawStrat(){
   const{rows,spot,A,bias}=ST,v=$('view').value,name=$('strat').value,{l:lots,q}=qtyNow(),fv=v==='Futures + hedge';
-  const D=fv&&!ST.err?direction():null,SG=!fv?sigBlock(v,direction(),volSignal()):'',dh=D?dirHtml(D):'',chg=D&&/^Auto/.test(name)&&ST.specDir!==D.call?`<p class="warn">Signal is now ${D.call}. Legs switch automatically if it holds for ${HZ==='Swing'?'30':'5'} minutes.</p>`:'';
+  const D=fv&&!ST.err?direction():null,SG=!fv?sigBlock(v,direction()):'',dh=D?dirHtml(D):'',chg=D&&/^Auto/.test(name)&&ST.specDir!==D.call?`<p class="warn">Signal is now ${D.call}. Legs switch automatically if it holds for ${HZ==='Swing'?'30':'5'} minutes.</p>`:'';
   if(!ST.spec||!ST.spec.length){ST.legs=[];ST.mg=null;
     $('sc').innerHTML=(ST.flip?`<p class="warn">${ST.flip}</p>`:'')+dh+chg+`<p class="sub" style="margin-top:8px">${ST.err||'No trade: the option-data signals do not agree strongly enough. Staying out is a valid result.'}</p>`;$('mg').innerHTML='';return}
   const legs=ST.legs=ST.spec.map(([d,k,t])=>{
@@ -656,8 +820,8 @@ function drawStrat(){
   <div><span>Max profit</span><b>${fv?'Uncapped':inr(P.mx*q)}</b></div><div><span>Max loss</span><b>${inr(-P.mn*q)}</b></div>
   <div><span>Breakeven (distance from spot)</span><b style="font-size:15px">${P.be.map(x=>x.toFixed(0)+' ('+(x>=spot?'+':'')+((x/spot-1)*100).toFixed(2)+'%'+(MS?', '+((x-spot)/MS.move).toFixed(1)+'σ':'')+')').join('<br>')||'-'}</b></div>${MS?`<div><span>Probability of profit (model)</span><b>${(MS.pop*100).toFixed(0)}%</b></div><div><span>1σ range to expiry</span><b style="font-size:15px">${(spot-MS.move).toFixed(0)} – ${(spot+MS.move).toFixed(0)}<br><small>±${MS.move.toFixed(0)} (${(MS.move/spot*100).toFixed(1)}%)</small></b></div><div><span>Net delta (position)</span><b>${nd>=0?'+':''}${nd.toFixed(2)}<br><small>${nd>=0?'gains':'loses'} ₹${Math.abs(nd*q).toFixed(0)} per +1 index point</small></b></div>`:''}</div><div class="chart">${CH}</div>${MS?`<p class="sub" style="margin-top:8px">Probability model: lognormal at expiry with ATM implied volatility ${(MS.sig*100).toFixed(1)}% and ${MS.days.toFixed(1)} days left. It ignores skew, fat tails, events and your trend view, and it uses current LTPs, not the prices you may get. It is an estimate, not a forecast.</p>`:''}${fn}
   ${/Short strangle/.test(name)?'<p class="warn">Short strangle has no cap on loss and needs large margin.</p>':''}
-  <p class="sub" style="margin-top:8px">Expiry payoff at current LTPs, before charges. Screen built from OI and PCR only; it ignores IV and events.</p>`;
-  ST.mg={legs,P,q};ST.legKey=name+'|'+lots+'|'+JSON.stringify(ST.spec)+'|'+($('hedge')?$('hedge').value:'');drawMargin();
+  <p class="sub" style="margin-top:8px">Expiry payoff at current LTPs, before charges.</p>`;
+  ST.mg={legs,P,q};ST.legKey=name+'|'+lots+'|'+JSON.stringify(ST.spec)+'|'+($('hedge')?$('hedge').value:'');drawMargin();drawGallery();
 }
 function ordered(){return (ST.legs||[]).map((l,i)=>({l,i})).sort((a,b)=>(a.l.d==='BUY'?0:1)-(b.l.d==='BUY'?0:1))}
 function bp(l){const b=$('pbasis')?$('pbasis').value:'ltp';if(b==='ltp')return l.p;
@@ -753,10 +917,81 @@ function drawPaper(){
 }
  
 /* ---------- order placement ---------- */
+async function getPublicIp(){try{const r=await http('GET','https://api.ipify.org?format=json',{}),j=typeof r==='string'?JSON.parse(r):r;return j&&j.ip||null}catch{return null}}
+async function riskGate(ord){
+  const sf=CFG.safe,block=[],warn=[];
+  if(sf.kill)block.push('The kill switch is ON (Settings), so new live orders are disabled.');
+  if(sf.regIp){const ip=await getPublicIp();if(ip===null)warn.push('Could not read your public IP. Kotak rejects orders from an IP that is not registered.');else if(ip!==sf.regIp)block.push('Your public IP is '+ip+' but the registered IP is '+sf.regIp+'. Kotak will reject these orders.')}
+  if(sf.maxLoss>0){try{if(!PF.t||Date.now()-PF.t>60000)await loadPf();const day=(PF.pos||[]).reduce((t,x)=>t+(x.day||0),0);
+      if(-day>=sf.maxLoss)block.push("Today's positions P&L is "+inr2(day)+', which has reached your daily loss limit of '+inr2(-sf.maxLoss)+'.')}
+    catch(e){warn.push('Could not check the daily loss limit ('+String(e.message||e).slice(0,60)+').')}}
+  const now=Date.now();
+  if(sf.dup)ord.forEach(x=>{const t=LASTORD[x.o.ts+'|'+x.o.tt+'|'+x.o.qt];if(t&&now-t<120000)warn.push('Duplicate: '+x.l.d+' '+x.o.ts+' qty '+x.o.qt+' was sent '+Math.round((now-t)/1000)+' s ago.')});
+  if(sf.band>0)ord.forEach(x=>{if(x.o.pt==='MKT')return;const ltp=x.l&&x.l.p,pr=+x.o.pr;if(ltp>0){const dev=(pr-ltp)/ltp*100;if(Math.abs(dev)>sf.band&&Math.abs(pr-ltp)>1)warn.push(x.l.d+' '+x.o.ts+' limit '+x.o.pr+' is '+dev.toFixed(1)+'% from the last price '+ltp.toFixed(2)+'.')}});
+  return{block,warn}
+}
+const og=(o,...ks)=>{for(const k of ks)if(o[k]!=null&&o[k]!=='')return o[k];return ''};
+const ordRow=o=>({no:String(og(o,'nOrdNo','orderNo','ordNo')),st:String(og(o,'ordSt','status','orderStatus','stat')),sym:String(og(o,'trdSym','sym','tradingSymbol')),side:String(og(o,'trnsTp','transactionType')),qty:num(og(o,'qty','ordQty')),fld:num(og(o,'fldQty','flQty','filledQty')),prc:num(og(o,'prc','price')),avg:num(og(o,'avgPrc','avgPrice')),rej:String(og(o,'rejRsn','rejReason','emsg')),time:String(og(o,'ordDtTm','hsUpTm','time')),seg:String(og(o,'exSeg')),prod:String(og(o,'prod'))});
+const isDone=st=>/complete|filled|traded/i.test(st),isRej=st=>/reject/i.test(st),isCan=st=>/cancel/i.test(st),isOpen=st=>!isDone(st)&&!isRej(st)&&!isCan(st);
+const setR=(R,t)=>{if(R.firstChild&&R.firstChild.nodeType===3)R.firstChild.nodeValue=t;else R.textContent=t};
+async function refreshOrders(){try{const r=await Kotak.orders();PF.ord=pfList(r).map(ordRow);PF.oerr=''}catch(e){const m=String(e.message||e);if(/^\s*401\b|invalid session/i.test(m)){sessionExpired();return}PF.oerr=m}if(curPage==='pf'&&$('pftab').value==='Orders')renderPf()}
+function ordersHtml(){
+  const O=PF.ord;if(PF.oerr)return `<p class="warn">Order book: ${PF.oerr}</p><p class="sub">The order book call was written from Kotak's SDK names and has not been confirmed. Send me Kotak's Order Report page if this fails.</p>`;
+  if(!O)return '<p class="sub">Loading the order book…</p>';if(!O.length)return '<p class="sub">No orders today.</p>';
+  return O.map(o=>`<div class="pfr"><div class="t"><span>${o.sym} <small>${o.side==='B'?'BUY':o.side==='S'?'SELL':o.side}</small></span><span class="${isDone(o.st)?'buy':isRej(o.st)||isCan(o.st)?'sell':''}">${o.st||'-'}</span></div>
+    <div class="s"><span>Qty ${o.qty}${o.fld?' · filled '+o.fld:''} · price ${o.prc?o.prc.toFixed(2):'-'}${o.avg?' · avg '+o.avg.toFixed(2):''}</span><span>#${o.no}</span></div>
+    ${o.rej?`<div class="s"><small class="sell">${o.rej}</small></div>`:''}${isOpen(o.st)&&o.no?`<div class="s"><button class="danger" style="width:auto;margin:6px 0 0;padding:6px 12px" onclick="cancelOrd('${o.no}')">Cancel order</button></div>`:''}</div>`).join('')
+}
+async function cancelOrd(no){if(!confirm('Cancel order #'+no+'?'))return;try{const r=await Kotak.cancel(no);alert('Cancel request sent: '+JSON.stringify(r).slice(0,160))}catch(e){alert('Cancel failed: '+String(e.message||e).slice(0,200))}refreshOrders()}
+async function watchBuys(R,nos,sells,b,base){
+  for(let i=0;i<60;i++){await sleep(3000);let st;try{st=pfList(await Kotak.orders()).map(ordRow).filter(o=>nos.includes(o.no))}catch{continue}
+    if(!st.length)continue;const line=st.map(o=>o.sym+' '+o.st+(o.fld?' ('+o.fld+'/'+o.qty+')':'')).join(' | ');
+    if(st.some(o=>isRej(o.st)||isCan(o.st))){const bad=st.find(o=>isRej(o.st)||isCan(o.st));setR(R,base+'Buy order status: '+line+'\nA buy order was '+bad.st+(bad.rej?': '+bad.rej:'')+'. The sell legs were NOT sent.');try{b.remove()}catch{}return}
+    if(st.length>=nos.length&&st.every(o=>isDone(o.st))){
+      if(CFG.safe.auto){try{b.remove()}catch{}const g=await riskGate(sells);if(g.block.length){setR(R,base+'Buy legs FILLED. Auto-send blocked: '+g.block.join('; '));return}
+        setR(R,base+'Buy legs FILLED. Sending the sell legs…');if(await sendLegs(sells,R,base+'Buy legs FILLED.\n'))R.textContent+='\nAll legs sent. Verify in the order book.';return}
+      setR(R,base+'Buy order status: '+line+'\nBuy legs are FILLED. Tap the red button to send the sell legs.');return}
+    setR(R,base+'Buy order status: '+line+'\n')}
+  setR(R,base+'Stopped watching after 3 minutes. Check the Orders tab, then use the red button when the buys are filled.')
+}
+async function sqLive(which){
+  const P=PF.pos||[],list=(which==='all'?P.map((x,i)=>i):which).map(i=>P[i]).filter(x=>x&&x.net&&!x.closed&&x.ltp>0);
+  if(!list.length){alert('Nothing to square off (no open position with a live price).');return}
+  const ord=list.map(x=>{const buy=x.net<0,fut=/FUT/i.test(x.name),t=fut?0.1:0.05,px=(Math.round((buy?x.ltp*1.01:x.ltp*0.99)/t)*t).toFixed(2);
+    return{x,l:{d:buy?'BUY':'SELL',p:x.ltp},o:{am:'NO',dq:'0',es:x.seg,mp:'0',pc:x.prod||'NRML',pf:'N',pr:px,pt:'L',qt:String(Math.abs(x.net)),rt:'DAY',tp:'0',ts:x.name,tt:buy?'B':'S'}}});
+  ord.sort((a,b)=>(a.o.tt==='B'?0:1)-(b.o.tt==='B'?0:1));
+  const buys=ord.filter(x=>x.o.tt==='B'),sells=ord.filter(x=>x.o.tt==='S'),sum=ord.map(x=>x.l.d+' '+x.o.ts+'  qty '+x.o.qt+'  @ '+x.o.pr+' (about 1% through the last price so it fills)').join('\n');
+  const ip=CFG.safe.regIp?await getPublicIp():null;if(CFG.safe.regIp&&ip&&ip!==CFG.safe.regIp){alert('Your public IP is '+ip+' but the registered IP is '+CFG.safe.regIp+'. Kotak will reject the orders.');return}
+  if(!confirm('Square off '+ord.length+' position(s)? Shorts are bought back first, then longs are sold.\n\n'+sum))return;
+  const R=$('pferr');R.textContent='Sending…';
+  const ok=buys.length?await sendLegs(buys,R,''):true;if(!ok)return;
+  if(sells.length){const nos=LASTNOS.slice(),base=R.textContent+'\n';
+    if(buys.length){for(let i=0;i<60;i++){await sleep(3000);let st;try{st=pfList(await Kotak.orders()).map(ordRow).filter(o=>nos.includes(o.no))}catch{continue}
+      if(st.some(o=>isRej(o.st)||isCan(o.st))){R.textContent=base+'A buy-back order was rejected or cancelled. The sell orders were NOT sent.';return}
+      if(st.length>=nos.length&&st.every(o=>isDone(o.st)))break}}
+    await sendLegs(sells,R,base)}
+  R.textContent+='\nDone. Check the Orders tab.';refreshOrders();loadPf()
+}
+/* ---------- option chain recording ---------- */
+let recT=0;const OCX=(()=>{try{return JSON.parse(localStorage.getItem('os_ocx')||'{}')}catch{return{}}})();
+function recordChain(){
+  if(!CFG.rec.on||S.demo||!ST||!ST.rows||!ST.rows.length||ST.parity)return;
+  const now=Date.now(),p=istParts(now);if(!isWd(p)||p.min<555||p.min>930||now-recT<CFG.rec.mins*60000)return;recT=now;
+  const sym=$('sym').value,key='oc|'+sym+'|'+p.day,snap={t:now,exp:+$('exp').value,spot:ST.spot,fut:ST.fut?ST.fut.ltp:null,r:ST.rows.map(r=>[r.k,r.ce.ltp,r.ce.oi,r.pe.ltp,r.pe.oi])};
+  idbGet(key).then(a=>{a=Array.isArray(a)?a:[];a.push(snap);OCX[key]=a.length;try{localStorage.setItem('os_ocx',JSON.stringify(OCX))}catch{}return idbSet(key,a)}).catch(()=>{})
+}
+function renderRec(){const el=$('rec_stat');if(!el)return;const k=Object.keys(OCX),n=k.reduce((t,x)=>t+OCX[x],0);
+  el.textContent=k.length?n+' snapshots saved over '+k.length+' index-days. Latest: '+k.sort().slice(-3).map(x=>x.replace('oc|','')+' ('+OCX[x]+')').join(', '):'Nothing recorded yet. It starts when a chain is on screen during market hours.'}
+async function copyChainCsv(){
+  const sym=$('sym').value,key='oc|'+sym+'|'+istParts(Date.now()).day,a=await idbGet(key);
+  if(!Array.isArray(a)||!a.length){$('rec_stat').textContent='Nothing recorded today for '+sym+' yet.';return}
+  const L=['time,expiry,spot,future,strike,ce_ltp,ce_oi,pe_ltp,pe_oi'];a.forEach(x=>x.r.forEach(r=>L.push([new Date(x.t+19800000).toISOString().slice(0,19),x.exp,x.spot,x.fut==null?'':x.fut,...r].join(','))));
+  try{await navigator.clipboard.writeText(L.join('\n'));$('rec_stat').textContent='Copied '+(L.length-1)+' rows for '+sym+' today.'}catch{$('rec_stat').textContent='Could not copy (clipboard blocked). '+(L.length-1)+' rows are stored on the phone.'}
+}
 async function sendLegs(list,R,base){
-  const out=[];
+  const out=[];LASTNOS.length=0;
   for(const x of list){let r;try{r=await Kotak.order(x.o)}catch(e){r={err:String(e.message||e)}}
-    const ok=r&&(r.stat==='Ok'||r.nOrdNo);out.push((ok?'OK   ':'FAIL ')+x.l.d+' '+x.o.ts+'  '+JSON.stringify(r).slice(0,160));R.textContent=base+out.join('\n');
+    const ok=r&&(r.stat==='Ok'||r.nOrdNo);if(ok){LASTORD[x.o.ts+'|'+x.o.tt+'|'+x.o.qt]=Date.now();LASTNOS.push(String(r.nOrdNo||''))}out.push((ok?'OK   ':'FAIL ')+x.l.d+' '+x.o.ts+'  '+JSON.stringify(r).slice(0,160));R.textContent=base+out.join('\n');
     if(!ok){R.textContent+='\nStopped: remaining legs were NOT sent. Check the Neo order book.';return false}}
   return true
 }
@@ -764,7 +999,7 @@ async function place(){
   const R=$('res');R.classList.remove('hide');
   try{const sym=$('sym').value,seg=IDX[sym].seg,lots=+$('lots').value,{q}=qtyNow(),mkt=$('otype').value==='MKT',dry=$('dry').checked||S.demo;
     if(!(Number.isInteger(lots)&&lots>=1))throw new Error('Lots must be a whole number, 1 or more.');
-    if(lots>MAXLOTS)throw new Error('Max '+MAXLOTS+' lots per ticket (safety limit in the code).');
+    {const ml=CFG.safe.maxLots||MAXLOTS;if(lots>ml)throw new Error('Max '+ml+' lots per ticket (your limit in Settings).')}
     if(!ST.legs||!ST.legs.length)throw new Error('No order legs: nothing to place.');
     const ord=ordered().map(({l,i})=>{const pr=mkt?0:+$('lp'+i).value,ts=l.ts||(S.demo?sym+' '+l.k+l.t:'');
       if(!mkt&&!(pr>0))throw new Error('Enter a price for '+l.d+' '+l.k+' '+l.t);
@@ -773,35 +1008,36 @@ async function place(){
     const sum=ord.map(x=>`${x.l.d} ${x.o.ts}  qty ${q}  ${mkt?'MARKET':'@ '+x.o.pr}  ${x.o.pc}/${x.o.rt}`).join('\n');
     if(dry){newPaper(ord,q,mkt);R.textContent='DRY RUN: nothing sent to Kotak. A paper trade was created (see Paper trades below).\nOrder sequence, buys first:\n'+sum;return}
     const buys=ord.filter(x=>x.l.d==='BUY'),sells=ord.filter(x=>x.l.d==='SELL');
-    if(!confirm('Send '+(buys.length?buys.length+' BUY order(s) now':sells.length+' SELL order(s) now')+'?\n\nFull plan, buys first:\n'+sum+(buys.length&&sells.length?'\n\nSell legs are sent only after you confirm the buys are filled.':'')))return;
+    const gate=await riskGate(ord);if(gate.block.length){R.textContent='BLOCKED, nothing was sent:\n- '+gate.block.join('\n- ');return}
+    if(!confirm('Send '+(buys.length?buys.length+' BUY order(s) now':sells.length+' SELL order(s) now')+'?\n\nFull plan, buys first:\n'+sum+(buys.length&&sells.length?(CFG.safe.auto?'\n\nSell legs are sent automatically once the buys are confirmed filled.':'\n\nSell legs are sent only after you confirm the buys are filled.'):'')+(gate.warn.length?'\n\nWARNINGS:\n- '+gate.warn.join('\n- '):'')))return;
     R.textContent='Sending…';
     const first=buys.length?buys:sells,ok=await sendLegs(first,R,'');
     if(!ok)return;
     jrAdd('live',Date.now(),ord.map(x=>({d:x.l.d,k:x.l.k,t:x.l.t,e:+x.o.pr})),q);
     if(buys.length&&sells.length){
-      const base=R.textContent+'\n\nBuy legs sent. Open the Neo order book and wait until they are FILLED; the hedge margin benefit starts only then.\n';R.textContent=base;
+      const nos=LASTNOS.slice(),base=R.textContent+'\n\nBuy legs sent. Waiting for them to fill (checking the order book every 3 seconds)…\n';R.textContent=base;
       const b=document.createElement('button');b.className='live';b.textContent='Send sell legs now';
-      b.onclick=async()=>{if(!confirm('Are the buy legs FILLED in the Neo order book? Send the sell legs now?'))return;b.remove();R.textContent=base+'Sending sell legs…';
-        if(await sendLegs(sells,R,base+'\n'))R.textContent+='\nAll legs sent. Verify in the Neo order book.'};
-      R.appendChild(b)
-    }else R.textContent+='\nAll legs sent. Verify in the Neo order book.'
+      b.onclick=async()=>{if(!confirm('Send the sell legs now? Make sure the buy legs are FILLED.'))return;const g2=await riskGate(sells);if(g2.block.length){setR(R,base+'BLOCKED: '+g2.block.join('; '));return}b.remove();setR(R,base+'Sending sell legs…');
+        if(await sendLegs(sells,R,base+'\n'))R.textContent+='\nAll legs sent. Verify in the order book.'};
+      R.appendChild(b);watchBuys(R,nos,sells,b,base)
+    }else R.textContent+='\nAll legs sent. Verify in the order book.'
   }catch(e){R.textContent='Error: '+(e.message||e)}
 }
  
 /* ---------- live ticks (Kotak native_batch WebSocket) ---------- */
 const ENUM={nse_cm:1,nse_fo:2,cde_fo:3,nse_com:4,bse_cm:5,bse_fo:6,bse_cd:7,bse_co:8,mcx_fo:9,ncd_co:10};
-const W={ws:null,div:{},map:{},on:false};let pend=0;
+const W={ws:null,div:{},map:{},on:false,ready:false,pfOnly:false},PFMAP={},PFLIVE={t:0};let PFSUB=[],pfPend=0,curPage=null;let pend=0;
 function mapRows(){W.map={};if(!ST)return;const e=ENUM[IDX[$('sym').value].seg];ST.rows.forEach(r=>{if(r.ce.tok)W.map[e+'|'+r.ce.tok]=r.ce;if(r.pe.tok)W.map[e+'|'+r.pe.tok]=r.pe});if(ST.fut&&ST.fut.tok)W.map[e+'|'+ST.fut.tok]=ST.fut}
 function sched(){if(pend)return;pend=setTimeout(()=>{pend=0;if(ST)paint()},400)}
-function wsStop(){W.on=false;const w=W.ws;W.ws=null;if(w){try{w.close()}catch{}}}
+function wsStop(){W.on=false;W.ready=false;const w=W.ws;W.ws=null;if(w){try{w.close()}catch{}}}
 function wsStart(){
-  wsStop();if(!S.feed||!ST||S.demo)return;W.on=true;
+  wsStop();if(!S.feed||S.demo)return;W.on=true;
   const ws=W.ws=new WebSocket(S.feed.replace(/^http/,'ws'));ws.binaryType='arraybuffer';
   ws.onopen=()=>ws.send(JSON.stringify({user:S.ucc,auth:S.sid,format:'native_batch',source:'NEOTRADEAPI',sdk_version:1.1,sdk_date:'2026-10-28'}));
   ws.onmessage=e=>{
     if(typeof e.data==='string'){let m;try{m=JSON.parse(e.data)}catch{return}
       if(m.message_code===1117||m.message_code===1119)for(const k in m.exchanges||{})W.div[ENUM[k]]=m.exchanges[k].divider;
-      if(m.message_code===1117){wsSub(ws);$('wsst').textContent='Live ticks connected'}
+      if(m.message_code===1117){W.ready=true;wsSub(ws);pfSubscribe();$('wsst').textContent='Live ticks connected'}
       if(m.message_code===1120){$('wsst').textContent='Live feed auth failed: '+(m.message||'');W.on=false}
       return}
     decode(e.data)};
@@ -814,15 +1050,16 @@ function wsSub(ws){
   if(S.spotSym)ws.send(JSON.stringify({event:'subscribeIndices',inputtoken:S.spotSym}))
 }
 function decode(buf){
-  const dv=new DataView(buf);let o=0,hit=false;
+  const dv=new DataView(buf);let o=0,hit=false,pfHit=false;
   while(o+2<=buf.byteLength){const n=dv.getUint16(o,true);if(n<9||o+n>buf.byteLength)break;
     const mc=dv.getUint16(o+2,true),ex=dv.getInt8(o+4),lv=dv.getUint8(o+5),d=W.div[ex]||100;
     if(mc===7208&&(lv===1||lv===2||lv===4||lv===8)){
       const tok=dv.getUint32(o+9,true),x=W.map[ex+'|'+tok];
-      if(x){if(lv===1)x.ltp=dv.getUint32(o+21,true)/d;else{x.ltp=dv.getUint32(o+69,true)/d;x.oi=dv.getUint32(o+103,true)}hit=true}}
-    else if(mc===7207&&ST&&!ST.parity){const v=dv.getInt32(o+29,true)/d;if(v>0){ST.spot=v;hit=true}}
+      if(x){if(lv===1)x.ltp=dv.getUint32(o+21,true)/d;else{x.ltp=dv.getUint32(o+69,true)/d;x.oi=dv.getUint32(o+103,true)}hit=true}
+      const y=PFMAP[ex+'|'+tok];if(y){const v=(lv===1?dv.getUint32(o+21,true):dv.getUint32(o+69,true))/d;if(v>0){y.ltp=v;pfHit=true}}}
+    else if(mc===7207&&ST&&!ST.parity){const v=dv.getInt32(o+29,true)/d;if(v>0){ST.spot=v;hit=true;recTick($('sym').value,v,Date.now())}}
     o+=n}
-  if(hit)sched()
+  if(hit)sched();if(pfHit)pfSched()
 }
 let TM=null,dpb=false;
 async function depthPoll(){
@@ -863,7 +1100,7 @@ async function switchIdx(){
   }catch(e){fail(e)}
 }
 $('sym').onchange=switchIdx;$('exp').onchange=()=>{ST=null;load(false)};$('load').onclick=()=>load(false);$('mode').onchange=setMode;
-let trT=null;function startTrend(){loadTrend();loadFII();clearInterval(trT);trT=setInterval(loadTrend,900000)}
+let trT=null;function startTrend(){loadTrend();clearInterval(trT);trT=setInterval(loadTrend,900000)}
 $('fundsb').onclick=async()=>{
   if(S.demo){$('funds').textContent='Funds are not available in demo mode.';return}
   try{$('funds').textContent='Checking funds…';const r=await Kotak.limits(),d=Array.isArray(r)?r[0]:r;
@@ -917,7 +1154,7 @@ async function loadHold(){
   const qs=hq.length?await Kotak.quotes(hq.map(x=>x.seg+'|'+x.tok)):[],by={};qs.forEach(q=>by[qTok(q)]=q);
   return hq.map(({tok,h})=>{const q=by[tok]||{},qty=num(h.quantity),avg=num(h.averagePrice),cost=num(h.holdingCost)||avg*qty,
     prev=qPrev(q)||num(h.closingPrice),ltp=qLtp(q)||num(h.closingPrice),val=ltp*qty,pnl=val-cost,day=(ltp-prev)*qty;
-    return{name:h.displaySymbol||h.symbol||h.instrumentName,full:h.instrumentName||'',qty,avg,ltp,cost,val,pnl,pnlp:cost?pnl/cost*100:0,day,dayp:prev*qty?day/(prev*qty)*100:0,live:qLtp(q)>0}})
+    const seg=h.exchangeSegment||'nse_cm';return{name:h.displaySymbol||h.symbol||h.instrumentName,full:h.instrumentName||'',qty,avg,ltp,cost,val,pnl,pnlp:cost?pnl/cost*100:0,day,dayp:prev*qty?day/(prev*qty)*100:0,live:qLtp(q)>0,prev,seg,tok,key:ENUM[seg]+'|'+tok}})
 }
 async function loadPos(){
   const r=await http('GET',S.base+'/quick/user/positions',{...Kotak.TH(),accept:'application/json'}),list=pfList(r),items=[];
@@ -929,7 +1166,20 @@ async function loadPos(){
       ab=bq?ba/bq:0,as=sq?sa/sq:0,ltp=qLtp(q),prev=qPrev(q)||ltp,live=ltp>0,mark=live?ltp:(net>0?ab:as);
     const pnl=sa-ba+net*mark,carried=(num(p.cfSellAmt)-num(p.cfBuyAmt))+(cfB-cfS)*prev,day=pnl-carried;
     const inv=net>0?ab*net:net<0?as*-net:ba,base=Math.abs(net)*prev||inv;
-    return{inst,name:p.trdSym||p.sym,prod:p.prod,net,ab,as,ltp,pnl,pnlp:inv?pnl/inv*100:0,day,dayp:base?day/base*100:0,live,closed:net===0,raw:`buyAmt ${p.buyAmt} · cfBuyAmt ${p.cfBuyAmt||0} · sellAmt ${p.sellAmt} · cfSellAmt ${p.cfSellAmt||0}`}})
+    return{inst,seg:p.exSeg,tok,key:tok?ENUM[p.exSeg]+'|'+tok:null,sa,ba,carried,inv,base,name:p.trdSym||p.sym,prod:p.prod,net,ab,as,ltp,pnl,pnlp:inv?pnl/inv*100:0,day,dayp:base?day/base*100:0,live,closed:net===0,raw:`buyAmt ${p.buyAmt} · cfBuyAmt ${p.cfBuyAmt||0} · sellAmt ${p.sellAmt} · cfSellAmt ${p.cfSellAmt||0}`}})
+}
+function pfCalcH(x){x.val=x.ltp*x.qty;x.pnl=x.val-x.cost;x.pnlp=x.cost?x.pnl/x.cost*100:0;x.day=(x.ltp-x.prev)*x.qty;x.dayp=x.prev*x.qty?x.day/(x.prev*x.qty)*100:0}
+function pfCalcP(x){const mark=x.ltp>0?x.ltp:(x.net>0?x.ab:x.as);x.pnl=x.sa-x.ba+x.net*mark;x.day=x.pnl-x.carried;x.pnlp=x.inv?x.pnl/x.inv*100:0;x.dayp=x.base?x.day/x.base*100:0}
+function pfApply(){let n=0;
+  (PF.hold||[]).forEach(x=>{const y=x.key&&PFMAP[x.key];if(y&&y.ltp>0&&y.ltp!==x.ltp){x.ltp=y.ltp;x.live=true;pfCalcH(x);n++}});
+  (PF.pos||[]).forEach(x=>{const y=x.key&&PFMAP[x.key];if(y&&y.ltp>0&&y.ltp!==x.ltp){x.ltp=y.ltp;x.live=true;pfCalcP(x);n++}});
+  if(n)PFLIVE.t=Date.now();return n}
+function pfSched(){if(pfPend)return;pfPend=setTimeout(()=>{pfPend=0;if(pfApply()&&curPage==='pf'&&['Holdings','Positions'].includes($('pftab').value))renderPf()},500)}
+function pfSubscribe(){const ws=W.ws;if(!ws||!W.ready)return;const t=[...new Set(PFSUB)];try{for(let i=0;i<t.length;i+=40)ws.send(JSON.stringify({event:'subscribeScrips',inputtoken:t.slice(i,i+40).join(',')}))}catch{}}
+function pfLive(){
+  if(S.demo||!S.feed)return;PFSUB=[];
+  [...(PF.hold||[]),...(PF.pos||[])].forEach(x=>{if(x.key&&x.tok){PFMAP[x.key]={ltp:x.ltp};PFSUB.push(x.seg+'|'+x.tok)}});
+  if(!W.ws){W.pfOnly=true;wsStart()}else pfSubscribe()
 }
 function demoPf(){return{hold:[{name:'ITBEES',full:'Nippon India ETF Nifty IT',qty:45,avg:38.7162,ltp:40.1,cost:1742.23,val:1804.5,pnl:62.27,pnlp:3.57,day:33.3,dayp:1.87,live:true},
   {name:'AXISBANK',full:'Axis Bank',qty:9,avg:651.43,ltp:640.2,cost:5862.9,val:5761.8,pnl:-101.1,pnlp:-1.72,day:-27,dayp:-0.47,live:true}],
@@ -944,30 +1194,30 @@ async function loadPf(){
       PF={hold,pos,herr,perr,t:Date.now()};try{PF.risk=await buildRisk(pos)}catch(e){PF.rerr=String(e.message||e)}}
     renderPf()
   }catch(e){const m=String(e.message||e);if(/^\s*401\b|invalid session/i.test(m)){sessionExpired();return}$('pferr').textContent=m}
-  finally{PF.busy=false;$('pfref').textContent='⟳ Refresh'}
+  finally{PF.busy=false;$('pfref').textContent='⟳ Refresh';if($('pftab').value==='Orders')refreshOrders()}
 }
 function renderPf(){
   const tab=$('pftab').value,H=PF.hold||[],P=PF.pos||[];
   const sum=a=>a.reduce((t,x)=>t+x,0),tile=(l,v,p)=>`<div><span>${l}</span><b class="${cz(v)}">${inr2(v)}</b>${p!=null?`<small class="${cz(v)}">${pc(p)}</small>`:''}</div>`;
   const hc=sum(H.map(x=>x.cost)),hv=sum(H.map(x=>x.val)),hp=hv-hc,hd=sum(H.map(x=>x.day)),hprev=hv-hd,pp=sum(P.map(x=>x.pnl)),pd=sum(P.map(x=>x.day));
   $('pfsum').innerHTML=`<div class="kv">${tile('Holdings P&L',hp,hc?hp/hc*100:0)}${tile('Holdings today',hd,hprev?hd/hprev*100:0)}${tile('Positions P&L',pp,null)}${tile('Positions today',pd,null)}${tile('Total P&L',hp+pp,null)}${tile('Total today',hd+pd,null)}</div>
-  <p class="sub" style="margin:8px 0 0">Invested ${inr2(hc)} · Current ${inr2(hv)} · updated ${PF.t?new Date(PF.t).toLocaleTimeString('en-IN'):'-'}</p>`;
+  <p class="sub" style="margin:8px 0 0">Invested ${inr2(hc)} · Current ${inr2(hv)} · updated ${PF.t?new Date(PF.t).toLocaleTimeString('en-IN'):'-'}${PFLIVE.t&&Date.now()-PFLIVE.t<20000?' · <b class="buy">● live</b>':''}</p>`;
   let html='';
   if(tab==='Holdings'){
     html=PF.herr?`<p class="warn">Holdings: ${PF.herr}</p>`:'';
     html+=H.length?H.map(x=>`<div class="pfr"><div class="t"><span>${x.name}</span><span>${x.live?'':'(prev close) '}${inr2(x.ltp)}</span></div>
       <div class="s"><span>${x.qty} × ${inr2(x.avg)} = ${inr2(x.cost)}</span><span>Value ${inr2(x.val)}</span></div>
       <div class="s"><span>P&L <b class="${cz(x.pnl)}">${inr2(x.pnl)} (${pc(x.pnlp)})</b></span><span>Today <b class="${cz(x.day)}">${inr2(x.day)} (${pc(x.dayp)})</b></span></div></div>`).join(''):'<p class="sub">No holdings reported.</p>'
-  }else if(tab==='Risk'){html=riskHtml()}else if(tab==='Journal'){html=journalHtml()}else{
+  }else if(tab==='Orders'){html=ordersHtml()}else if(tab==='Risk'){html=riskHtml()}else if(tab==='Journal'){html=journalHtml()}else{
     html=PF.perr?`<p class="warn">Positions: ${PF.perr}</p>`:'';
-    html+=P.length?P.map(x=>`<div class="pfr"><div class="t"><span>${x.name} <small>${x.prod||''}${x.closed?' · closed':''}</small></span><span>${x.live?inr2(x.ltp):'no live price'}</span></div>
+    html+=(P.some(x=>x.net&&!x.closed)?'<button class="warnb" style="margin:6px 0 8px" onclick="sqLive(\'all\')">■ Square off all (shorts first)</button>':'')+(P.length?P.map((x,i)=>`<div class="pfr"><div class="t"><span>${x.name} <small>${x.prod||''}${x.closed?' · closed':''}</small></span><span>${x.live?inr2(x.ltp):'no live price'}</span></div>
       <div class="s"><span>Net ${x.net>0?'+':''}${x.net} · buy avg ${inr2(x.ab)} · sell avg ${inr2(x.as)}</span></div>
       <div class="s"><span>${x.closed?'Realised':'P&L'} <b class="${cz(x.pnl)}">${inr2(x.pnl)} (${pc(x.pnlp)})</b></span><span>Today <b class="${cz(x.day)}">${inr2(x.day)} (${pc(x.dayp)})</b></span></div>
-      <div class="s"><small>${x.raw}</small></div></div>`).join(''):'<p class="sub">No positions reported for today.</p>'}
+      <div class="s"><small>${x.raw}</small></div>${x.net&&!x.closed?`<div class="s"><button class="warnb" style="width:auto;margin:6px 0 0;padding:6px 12px" onclick="sqLive([${i}])">Square off</button></div>`:''}</div>`).join(''):'<p class="sub">No positions reported for today.</p>')}
   $('pflist').innerHTML=html
 }
 /* ---------- settings, lock, alerts ---------- */
-const CFGD={alerts:{on:false,sig:true,be:true,beDist:50,pnl:true,tp:2000,sl:2000},sizing:{cap:0,risk:1,stop:2},lock:{h:'',salt:'',min:5}};
+const CFGD={safe:{kill:false,maxLoss:0,band:3,dup:true,regIp:'',auto:false,maxLots:20},rec:{on:true,mins:5},ma:{fast:20,slow:50,type:'EMA',rsi:14},alerts:{on:false,sig:true,be:true,beDist:50,pnl:true,tp:2000,sl:2000},sizing:{cap:0,risk:1,stop:2},lock:{h:'',salt:'',min:5}};
 let CFG=JSON.parse(JSON.stringify(CFGD));try{const j=JSON.parse(localStorage.getItem('os_cfg')||'null');if(j)for(const k in CFGD)CFG[k]={...CFGD[k],...(j[k]||{})}}catch{}
 const saveCfg=()=>{try{localStorage.setItem('os_cfg',JSON.stringify(CFG))}catch{}};
 let toastT=0;const ALR={};
@@ -1003,10 +1253,14 @@ function forgotPin(){if(!confirm('This removes the PIN, clears the saved keys an
 function renderSettings(){
   $('lkst').textContent=CFG.lock.h?'App lock is ON.':'App lock is OFF.';$('lmin').value=String(CFG.lock.min);
   const a=CFG.alerts,z=CFG.sizing;$('al_on').checked=a.on;$('al_sig').checked=a.sig;$('al_be').checked=a.be;$('al_pnl').checked=a.pnl;$('al_bd').value=a.beDist;$('al_tp').value=a.tp;$('al_sl').value=a.sl;
-  $('sz_cap').value=z.cap||'';$('sz_risk').value=z.risk;$('sz_stop').value=z.stop
+  $('sz_cap').value=z.cap||'';$('sz_risk').value=z.risk;$('sz_stop').value=z.stop;
+  const sf=CFG.safe,rc=CFG.rec;$('sf_kill').checked=sf.kill;$('sf_loss').value=sf.maxLoss||'';$('sf_band').value=sf.band;$('sf_dup').checked=sf.dup;$('sf_ip').value=sf.regIp;$('sf_auto').checked=sf.auto;$('sf_lots').value=sf.maxLots;$('rec_on').checked=rc.on;$('rec_min').value=rc.mins;renderRec();
+  $('ma_fast').value=CFG.ma.fast;$('ma_slow').value=CFG.ma.slow;$('ma_rsi').value=CFG.ma.rsi;$('ma_type').value=CFG.ma.type
 }
 function readSettings(){const a=CFG.alerts,z=CFG.sizing;a.on=$('al_on').checked;a.sig=$('al_sig').checked;a.be=$('al_be').checked;a.pnl=$('al_pnl').checked;a.beDist=+$('al_bd').value||50;a.tp=+$('al_tp').value||0;a.sl=+$('al_sl').value||0;
-  z.cap=+$('sz_cap').value||0;z.risk=+$('sz_risk').value||1;z.stop=+$('sz_stop').value||2;CFG.lock.min=+$('lmin').value;saveCfg()}
+  z.cap=+$('sz_cap').value||0;z.risk=+$('sz_risk').value||1;z.stop=+$('sz_stop').value||2;
+  {const sf=CFG.safe,rc=CFG.rec;sf.kill=$('sf_kill').checked;sf.maxLoss=Math.max(0,+$('sf_loss').value||0);sf.band=Math.max(0,+$('sf_band').value||0);sf.dup=$('sf_dup').checked;sf.regIp=$('sf_ip').value.trim();sf.auto=$('sf_auto').checked;sf.maxLots=Math.max(1,+$('sf_lots').value||20);rc.on=$('rec_on').checked;rc.mins=Math.max(1,+$('rec_min').value||5)}
+  CFG.ma.fast=Math.max(2,+$('ma_fast').value||20);CFG.ma.slow=Math.max(CFG.ma.fast+1,+$('ma_slow').value||50);CFG.ma.rsi=Math.max(2,+$('ma_rsi').value||14);CFG.ma.type=$('ma_type').value==='SMA'?'SMA':'EMA';CFG.lock.min=+$('lmin').value;saveCfg()}
 function sizingHtml(legs,P,q,need){
   const z=CFG.sizing,lots=qtyNow().l,cap=z.cap>0?z.cap:(S.demo?500000:(S.avail||0));
   if(!cap)return '<p class="sub">Sizing: set your capital in Settings, or tap Check funds.</p>';
@@ -1119,9 +1373,9 @@ async function idbSet(k,v){const db=await IDBP;if(!db){try{localStorage.setItem(
 async function idbDel(k){const db=await IDBP;if(!db){try{localStorage.removeItem('idb_'+k)}catch{}return}
   return new Promise(res=>{try{const tx=db.transaction('kv','readwrite');tx.objectStore('kv').delete(k);tx.oncomplete=()=>res(true);tx.onerror=()=>res(false)}catch{res(false)}})}
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch{}
-const HD={D:{span:170,depth:2190,fresh:600000},'60min':{span:80,depth:1095,fresh:300000}};
+const HD={D:{span:170,depth:2190},'60min':{span:80,depth:1095},'15min':{span:55,depth:730},'5min':{span:28,depth:365}},HC={};
 const histState={busy:false,msg:'',err:''},cmpBar=(a,b)=>a.t<b.t?-1:a.t>b.t?1:0;
-async function histLoad(sym,tf){const r=await idbGet('h|'+sym+'|'+tf);return r&&Array.isArray(r.bars)?r:{bars:[],t:0,from:null}}
+async function histLoad(sym,tf){const k=sym+'|'+tf;if(HC[k])return HC[k];const r=await idbGet('h|'+k);HC[k]=r&&Array.isArray(r.bars)?r:{bars:[],t:0,from:null};return HC[k]}
 async function kRange(sym,tf,from,to,span,onChunk,sink){ // newest to oldest, stops after two empty chunks
   const seg=IDX[sym].seg.replace('_fo','_cm'),DAY=864e5,F=Date.parse(from+'T00:00:00Z'),
     nm=[...new Set(IDX[sym].spot.map(x=>x.split('|')[1]).flatMap(n=>[n,n.toUpperCase()]))],toks=[...new Set([await idxToken(sym),...nm,IDXTOK[sym]])];let last='';
@@ -1137,9 +1391,24 @@ async function kRange(sym,tf,from,to,span,onChunk,sink){ // newest to oldest, st
     catch(e){last=String(e.message||e);if(/\b429\b|rate limit|too many/i.test(last))throw e;await sleep(1300)}}
   throw new Error(last||'history failed')
 }
+const LEN={'5min':5,'15min':15,'60min':60};
+const tMs=t=>{const m=/(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)/.exec(String(t));return m?Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5])-19800000:NaN};
+const istParts=ms=>{const d=new Date(ms+19800000);return{day:d.toISOString().slice(0,10),min:d.getUTCHours()*60+d.getUTCMinutes(),dow:d.getUTCDay()}};
+const isWd=p=>p.dow>0&&p.dow<6;
+function ltdOf(ms){let t=ms;for(let i=0;i<8;i++){const p=istParts(t);if(isWd(p))return p.day;t-=864e5}return istParts(ms).day}
+function prevTD(ms){const p=istParts(ms);return ltdOf(isWd(p)?ms-864e5:ms)}
+const lastStart=L=>555+Math.floor(374/L)*L;
+function histGap(tf,bars,now){
+  if(!bars.length)return true;const last=bars[bars.length-1],p=istParts(now);
+  if(tf==='D')return last.d<((isWd(p)&&p.min>=930)?p.day:prevTD(now));
+  const L=LEN[tf],lm=tMs(last.t);if(!(lm>0))return true;let day,startMin;
+  if(isWd(p)&&p.min>=555&&p.min<930){const b=Math.floor((p.min-555)/L)*L+555;if(b-L>=555){day=p.day;startMin=b-L}else{day=prevTD(now);startMin=lastStart(L)}}
+  else{day=(isWd(p)&&p.min>=930)?p.day:prevTD(now);startMin=lastStart(L)}
+  const [y,m,d]=day.split('-').map(Number);return lm<Date.UTC(y,m-1,d,Math.floor(startMin/60),startMin%60)-19800000
+}
 async function histSync(sym,tf,force,onP){
   const cfg=HD[tf],key='h|'+sym+'|'+tf,rec=await histLoad(sym,tf);
-  if(!force&&rec.bars.length&&Date.now()-rec.t<cfg.fresh)return rec.bars;
+  if(!force&&rec.bars.length&&(Date.now()-rec.t<180000||!histGap(tf,rec.bars,Date.now())))return rec.bars;
   const to=ymd(new Date()),want=ymd(new Date(Date.now()-cfg.depth*864e5)),sink=[];let err=null,backfill=false;
   try{
     if(!rec.bars.length||!rec.from){backfill=true;await kRange(sym,tf,want,to,cfg.span,onP,sink)}
@@ -1157,6 +1426,28 @@ async function histSync(sym,tf,force,onP){
   if(err)throw err;
   return rec.bars
 }
+async function ensureHist(sym,prog){let serr='';
+  for(const t of Object.keys(HD)){try{await histSync(sym,t,false,prog)}catch(e){serr=String(e.message||e);if(/429|rate limit|too many/i.test(serr))break}}return serr}
+/* ---------- live candle recorder: new candles are saved from live prices, so they need not be fetched again ---------- */
+const REC={};
+function bucketOf(tf,ist){const day=ist.toISOString().slice(0,10),m=ist.getUTCHours()*60+ist.getUTCMinutes();
+  if(tf==='D')return{key:day,t:day+'T00:00:00+0530'};
+  const L=LEN[tf],b=Math.floor((m-555)/L)*L+555,hh=String(Math.floor(b/60)).padStart(2,'0'),mm=String(b%60).padStart(2,'0');return{key:day+' '+b,t:day+'T'+hh+':'+mm+':00+0530'}}
+function recTick(sym,price,ms){
+  if(!(price>0)||S.demo)return;const ist=new Date(ms+19800000),m=ist.getUTCHours()*60+ist.getUTCMinutes();
+  if(!isWd({dow:ist.getUTCDay()})||m<555||m>=930)return;
+  const R=REC[sym]=REC[sym]||{};if(!R.started)R.started=ms;
+  for(const tf of ['5min','15min','60min','D']){const B=bucketOf(tf,ist),c=R[tf]=R[tf]||{};
+    if(!c.cur||c.cur.key!==B.key){const old=c.cur;c.cur={key:B.key,t:B.t,d:B.t.slice(0,10),o:price,h:price,l:price,c:price,partial:!old};if(old&&!old.partial)recClose(sym,tf,old)}
+    else{const q=c.cur;if(price>q.h)q.h=price;if(price<q.l)q.l=price;q.c=price}}
+}
+async function recClose(sym,tf,c){try{const rec=await histLoad(sym,tf),bar={t:c.t,d:c.d,o:c.o,h:c.h,l:c.l,c:c.c},i=rec.bars.findIndex(b=>b.t===bar.t);
+  if(i>=0)rec.bars[i]=bar;else{rec.bars.push(bar);if(rec.bars.length>1&&cmpBar(rec.bars[rec.bars.length-2],bar)>0)rec.bars.sort(cmpBar)}
+  rec.sym=sym;rec.tf=tf;if(!rec.from)rec.from=bar.d;await idbSet('h|'+sym+'|'+tf,rec)}catch{}}
+function liveBars(sym,tf){const rec=HC[sym+'|'+tf],base=rec?rec.bars:[],cur=REC[sym]&&REC[sym][tf]&&REC[sym][tf].cur;
+  const b=tf==='D'?base:base.slice(-900);if(!cur)return b;const x={t:cur.t,d:cur.d,o:cur.o,h:cur.h,l:cur.l,c:cur.c},last=b[b.length-1];
+  if(last&&last.t===x.t){const m=b.slice(0,-1);m.push({...last,h:Math.max(last.h,x.h),l:Math.min(last.l,x.l),c:x.c});return m}
+  return b.concat([x])}
 async function histSyncAll(){
   if(histState.busy||!S.base||S.demo)return;histState.busy=true;histState.err='';
   try{for(const sym of Object.keys(IDX))for(const tf of Object.keys(HD)){
@@ -1192,29 +1483,17 @@ async function trendFor(sym){
   const r={t:Date.now(),h:tf(h.slice(-300),'H'),d:tf(d,'D'),w:tf(grp(d,wk),'D'),rv:rvol(d)};TRC[sym]=r;return r
 }
 async function scanOne(sym){
-  const cfg=IDX[sym],seg=cfg.seg;if(!M[seg])M[seg]=await Kotak.master(seg);
+  const cfg=IDX[sym];let serr=await ensureHist(sym);
   let spot=0;for(const c of cfg.spot){try{const q=await Kotak.quotes([c]);spot=qLtp(q[0]||{});if(spot)break}catch{}await sleep(300)}
-  const now=Date.now()/1000-86400,all0=parseMaster(M[seg],sym),exs=[...new Set(all0.map(r=>r.exp))].filter(e=>e>=now).sort((a,b)=>a-b);if(!exs.length)throw new Error('no expiries found');
-  const ex=exs[0],all=all0.filter(r=>r.exp===ex),ks=[...new Set(all.map(r=>r.k))].sort((a,b)=>a-b),st=Math.min(...ks.slice(1).map((k,i)=>k-ks[i]).filter(d=>d>0)),ctr=spot||ks[Math.floor(ks.length/2)],near=all.filter(r=>Math.abs(r.k-ctr)<=8*st);
-  const qs=await Kotak.quotes(near.map(r=>seg+'|'+r.tok)),by={};qs.forEach(q=>by[qTok(q)]=q);
-  const m={};near.forEach(r=>{const q=by[r.tok]||{};(m[r.k]=m[r.k]||{k:r.k})[r.type==='CE'?'ce':'pe']={oi:qOi(q),ltp:qLtp(q),tok:r.tok,ts:r.ts}});
-  const rows=Object.values(m).filter(r=>r.ce&&r.pe).sort((a,b)=>a.k-b.k);if(rows.length<5)throw new Error('too few strikes');if(!spot){spot=parity(rows);if(!spot)throw new Error('no spot price')}
-  let tr=null,terr='';try{tr=await trendFor(sym)}catch(e){terr=String(e.message||e)}
-  const sST=ST,sTR={...TR};let out;
-  try{ST={rows,spot,key:'scan|'+sym+'|'+ex,fut:null,parity:false};ST.A=analyse(rows,spot);
-    Object.keys(TR).forEach(k=>delete TR[k]);
-    if(tr)Object.assign(TR,{ok:!!(tr.d&&tr.w),err:'',h:tr.h,d:tr.d,w:tr.w,rv:tr.rv,src:'Kotak'});else Object.assign(TR,{ok:false,err:terr||'no candles'});
-    const D=direction(),V=volSignal(ex);out={sym,spot,ex,pcr:ST.A.pcr,D,V,g:suggest(D,V),w:TR.w,d:TR.d,h:TR.h,terr}
-  }finally{ST=sST;Object.keys(TR).forEach(k=>delete TR[k]);Object.assign(TR,sTR)}
-  return out
+  const D=direction(sym);if(!D.rows.some(r=>r.ok))throw new Error(serr||'no stored candles yet');
+  return{sym,spot,D,g:suggest(D)}
 }
-let SCN=[];
 function scanHtml(){
-  const tl=x=>x?(x.v>0?'up':x.v<0?'down':'flat'):'-';
+  const cls=c=>c==='Bullish'?'buy':c==='Bearish'?'sell':'';
   return SCN.map(r=>r.err?`<div class="pfr"><div class="t"><span>${r.sym}</span><span class="sell">failed</span></div><div class="s"><small>${r.err}</small></div></div>`:
-   `<div class="pfr"><div class="t"><span>${r.sym} <small>${r.spot.toFixed(0)}</small></span><b class="${r.D.call==='Bullish'?'buy':r.D.call==='Bearish'?'sell':''}">${r.D.call}</b></div>
-   <div class="s"><span>PCR ${r.pcr.toFixed(2)} · trend W ${tl(r.w)} · D ${tl(r.d)}${r.d?' (RSI '+r.d.rsi.toFixed(0)+')':''} · H ${tl(r.h)}</span></div>
-   <div class="s"><span>${r.V?'IV '+(r.V.iv*100).toFixed(1)+'% vs realised '+(r.V.rv*100).toFixed(1)+'% ('+r.V.label+')':'volatility: no candles'}</span></div>
+   `<div class="pfr"><div class="t"><span>${r.sym} <small>${r.spot?r.spot.toFixed(0):''}</small></span><b class="${cls(r.D.call)}">${r.D.call}</b></div>
+   <div class="s"><span>Intraday <b class="${cls(r.D.intra.call)}">${r.D.intra.call}</b> · Swing <b class="${cls(r.D.swing.call)}">${r.D.swing.call}</b></span></div>
+   <div class="s"><span>RSI ${r.D.rows.map(x=>x.tf.replace(' ','')+' '+(x.ok?x.rsi.toFixed(0):'-')).join(' · ')}</span></div>
    <div class="s"><span>${r.g?'Suggested: <b>'+r.g.strat+'</b>':'No clear edge'}</span><button class="alt" style="width:auto;margin:0;padding:6px 12px" onclick="scanOpen('${r.sym}')">Open</button></div></div>`).join('')||'<p class="sub">Tap Scan to start.</p>'
 }
 function scanOpen(sym){$('sym').value=sym;chips('sym');pageShow(null);switchIdx()}
@@ -1223,20 +1502,30 @@ async function scanAll(){
   if(scanAll.busy)return;scanAll.busy=true;$('scgo').textContent='Scanning…';SCN=[];
   try{for(const sym of Object.keys(IDX)){$('scst').textContent='Scanning '+sym+' ('+(SCN.length+1)+' of '+Object.keys(IDX).length+')…';
       try{SCN.push(await scanOne(sym))}catch(e){SCN.push({sym,err:String(e.message||e)})}$('sclist').innerHTML=scanHtml();await sleep(800)}
-    $('scst').textContent='Done at '+new Date().toLocaleTimeString('en-IN')+'. Uses a ±8-strike window, so PCR and walls are rougher than on the main chain, and OI buildup is not included.'}
+    $('scst').textContent='Done at '+new Date().toLocaleTimeString('en-IN')+'. Uses the stored candles and the fast and slow moving average and RSI rules.'}
   finally{scanAll.busy=false;$('scgo').textContent='▶ Scan all indices'}
 }
 async function btBars(sym){let serr='';try{await histSync(sym,'D')}catch(e){serr=String(e.message||e)}
   const b=(await histLoad(sym,'D')).bars;if(b.length<150)throw new Error(serr||'not enough stored history yet');return b}
+function maSeries(c,n,type){const o=new Array(c.length).fill(null);if(c.length<n)return o;
+  if(type==='SMA'){let t=0;for(let i=0;i<c.length;i++){t+=c[i];if(i>=n)t-=c[i-n];if(i>=n-1)o[i]=t/n}return o}
+  const k=2/(n+1);let e=0;for(let i=0;i<n;i++)e+=c[i];e/=n;o[n-1]=e;for(let i=n;i<c.length;i++){e=c[i]*k+e*(1-k);o[i]=e}return o}
+function rsiSeries(c,n){const o=new Array(c.length).fill(null);if(c.length<=n)return o;let g=0,l=0;
+  for(let i=1;i<=n;i++){const d=c[i]-c[i-1];d>=0?g+=d:l-=d}g/=n;l/=n;o[n]=l===0?100:100-100/(1+g/l);
+  for(let i=n+1;i<c.length;i++){const d=c[i]-c[i-1];g=(g*(n-1)+Math.max(d,0))/n;l=(l*(n-1)+Math.max(-d,0))/n;o[i]=l===0?100:100-100/(1+g/l)}return o}
 function backtest(bars){
-  const n=bars.length,pos=new Array(n).fill(0);
-  for(let i=120;i<n;i++){const sub=bars.slice(0,i+1),d=tf(sub,'D'),w=tf(grp(sub,wk),'D');if(!d||!w)continue;pos[i]=(w.v>0&&d.v>0&&d.rsi<75)?1:(w.v<0&&d.v<0&&d.rsi>25)?-1:0}
+  const n=bars.length,M=CFG.ma,c=bars.map(b=>b.c),fa=maSeries(c,M.fast,M.type),sl=maSeries(c,M.slow,M.type),rs=rsiSeries(c,M.rsi),pos=new Array(n).fill(0);
+  const wkk=bars.map(b=>wk(b)),wi=[],wl=[];bars.forEach((b,i)=>{if(!i||wkk[i]!==wkk[i-1])wl.push(i);wi[i]=wl.length-1});
+  const wc=wl.map((s,k)=>c[(k+1<wl.length?wl[k+1]:n)-1]),wfa=maSeries(wc,M.fast,M.type),wsl=maSeries(wc,M.slow,M.type),wrs=rsiSeries(wc,M.rsi);
+  const sg=(f,s,r)=>f==null||s==null||r==null?0:(f>s&&r>50?1:f<s&&r<50?-1:0);
+  const S0=Math.max(M.slow,M.fast)+30;
+  for(let i=S0;i<n;i++){const k=wi[i]-1;if(k<0)continue;const d=sg(fa[i],sl[i],rs[i]),w=sg(wfa[k],wsl[k],wrs[k]);pos[i]=(w>0&&d>0&&rs[i]<75)?1:(w<0&&d<0&&rs[i]>25)?-1:0}
   let eq=0,peak=0,dd=0,bh=0,inm=0;const trades=[],curve=[],bhc=[];let cur=null;
-  for(let i=120;i<n-1;i++){const r=(bars[i+1].c/bars[i].c-1)*100,p=pos[i];eq+=p*r;bh+=r;curve.push(eq);bhc.push(bh);peak=Math.max(peak,eq);dd=Math.max(dd,peak-eq);
+  for(let i=S0;i<n-1;i++){const r=(bars[i+1].c/bars[i].c-1)*100,p=pos[i];eq+=p*r;bh+=r;curve.push(eq);bhc.push(bh);peak=Math.max(peak,eq);dd=Math.max(dd,peak-eq);
     if(p!==0){inm++;if(!cur||cur.p!==p){if(cur)trades.push(cur);cur={p,r:0,days:0,from:bars[i].d}}cur.r+=p*r;cur.days++;cur.to=bars[i+1].d}else if(cur){trades.push(cur);cur=null}}
   if(cur)trades.push(cur);
   const wins=trades.filter(t=>t.r>0),st=a=>a.length?{n:a.length,win:a.filter(t=>t.r>0).length/a.length*100,avg:a.reduce((t,x)=>t+x.r,0)/a.length}:{n:0,win:0,avg:0};
-  return{trades,curve,bhc,total:eq,bh,dd,exp:inm/Math.max(1,n-121)*100,win:trades.length?wins.length/trades.length*100:0,avg:trades.length?eq/trades.length:0,longs:st(trades.filter(t=>t.p>0)),shorts:st(trades.filter(t=>t.p<0)),from:bars[120]&&bars[120].d,to:bars[n-1].d,days:n-121}
+  return{trades,curve,bhc,total:eq,bh,dd,exp:inm/Math.max(1,n-S0-1)*100,win:trades.length?wins.length/trades.length*100:0,avg:trades.length?eq/trades.length:0,longs:st(trades.filter(t=>t.p>0)),shorts:st(trades.filter(t=>t.p<0)),from:bars[S0]&&bars[S0].d,to:bars[n-1].d,days:n-S0-1}
 }
 async function btRun(){
   if(S.demo){$('btst').textContent='Backtest needs a live login.';return}
@@ -1244,7 +1533,7 @@ async function btRun(){
   try{$('btst').textContent='Loading daily candles for '+sym+' (first run takes about 10 seconds)…';const bars=await btBars(sym);
     if(bars.length<260)throw new Error('only '+bars.length+' daily candles returned; need about 260 or more');
     $('btst').textContent='Testing '+bars.length+' days…';await sleep(30);const R=backtest(bars),f=v=>(v>=0?'+':'')+v.toFixed(1)+'%',k=(a,b)=>`<div><span>${a}</span><b>${b}</b></div>`;
-    $('btout').innerHTML=`<h2>${sym}: Swing trend rule</h2><p class="sub">${R.from} to ${R.to} (${R.days} trading days)</p><div class="kv">${k('Rule return (index, no costs)',`<span class="${cz(R.total)}" style="color:inherit">${f(R.total)}</span>`)}${k('Buy and hold',f(R.bh))}
+    $('btout').innerHTML=`<h2>${sym}: Swing rule (fast/slow average and RSI)</h2><p class="sub">${R.from} to ${R.to} (${R.days} trading days)</p><div class="kv">${k('Rule return (index, no costs)',`<span class="${cz(R.total)}" style="color:inherit">${f(R.total)}</span>`)}${k('Buy and hold',f(R.bh))}
       ${k('Trades',R.trades.length+' ('+R.win.toFixed(0)+'% won)')}${k('Average per trade',f(R.avg))}${k('Max drawdown',R.dd.toFixed(1)+'%')}${k('Time in market',R.exp.toFixed(0)+'%')}
       ${k('Long trades',R.longs.n+', '+R.longs.win.toFixed(0)+'% won, avg '+f(R.longs.avg))}${k('Short trades',R.shorts.n+', '+R.shorts.win.toFixed(0)+'% won, avg '+f(R.shorts.avg))}</div>
       <div class="chart" style="margin-top:10px">${lineSvg([{v:R.bhc,c:'--mut'},{v:R.curve,c:'--ok'}])}<p class="sub" style="margin:2px 6px 4px">Green: rule, grey: buy and hold (cumulative % of daily moves)</p></div>
@@ -1254,15 +1543,18 @@ async function btRun(){
 }
  
 /* ---------- page switching ---------- */
-const PAGES=['pf','stg','scn','bt'];
-function pageShow(id){['ctl','out'].forEach(x=>$(x).classList[id?'add':'remove']('hide'));PAGES.forEach(x=>$(x).classList[x===id?'remove':'add']('hide'));clearInterval(pfT);
-  if(id==='pf'){loadPf();pfT=setInterval(loadPf,20000)}if(id==='stg'){renderSettings();renderHist()}if(id==='scn')$('sclist').innerHTML=scanHtml()}
+const PAGES=['pf','stg','scn','bt','anl'];
+function pageShow(id){curPage=id;if(id!=='pf'&&W.pfOnly){W.pfOnly=false;if($('mode').value!=='live')wsStop()}
+  ['ctl','out'].forEach(x=>$(x).classList[id?'add':'remove']('hide'));PAGES.forEach(x=>$(x).classList[x===id?'remove':'add']('hide'));clearInterval(pfT);
+  if(id==='pf'){loadPf().then(pfLive);pfT=setInterval(()=>loadPf().then(pfLive),20000)}if(id==='stg'){renderSettings();renderHist()}if(id==='scn')$('sclist').innerHTML=scanHtml();if(id==='anl'){renderAnalyse();pfT=setInterval(renderAnalyse,3000)}}
 const pfShow=on=>pageShow(on?'pf':null);
 chips('sym');chips('mode');chips('pftab');
 $('pfb').onclick=()=>pageShow('pf');$('scnb').onclick=()=>pageShow('scn');$('btb').onclick=()=>pageShow('bt');$('stb').onclick=()=>pageShow('stg');
-['pfback','stback','scback','btback'].forEach(i=>{$(i).onclick=()=>pageShow(null)});
-$('pfref').onclick=loadPf;$('pftab').onchange=renderPf;$('scgo').onclick=scanAll;$('btgo').onclick=btRun;
-['al_on','al_sig','al_be','al_pnl','al_bd','al_tp','al_sl','sz_cap','sz_risk','sz_stop','lmin'].forEach(i=>{$(i).onchange=readSettings});
+['pfback','stback','scback','btback','anlback'].forEach(i=>{$(i).onclick=()=>pageShow(null)});
+$('pfref').onclick=loadPf;$('anlref').onclick=renderAnalyse;$('pftab').onchange=()=>{renderPf();if($('pftab').value==='Orders')refreshOrders()};$('scgo').onclick=scanAll;$('btgo').onclick=btRun;
+['al_on','al_sig','al_be','al_pnl','al_bd','al_tp','al_sl','sz_cap','sz_risk','sz_stop','lmin','ma_fast','ma_slow','ma_rsi','ma_type','sf_kill','sf_loss','sf_band','sf_dup','sf_ip','sf_auto','sf_lots','rec_on','rec_min'].forEach(i=>{$(i).onchange=readSettings});
+$('sf_chk').onclick=async()=>{$('sf_out').textContent='Checking…';const ip=await getPublicIp();$('sf_out').textContent=ip?('Your public IP is '+ip+(CFG.safe.regIp?(ip===CFG.safe.regIp?' (matches the registered IP).':' (does NOT match the registered IP '+CFG.safe.regIp+').'):'. Enter it above to have the app check it before every order.')):'Could not read your public IP (no internet?).'};
+$('rec_copy').onclick=copyChainCsv;
 $('al_on').addEventListener&&$('al_on').addEventListener('change',()=>{if($('al_on').checked)notify('test','Alerts are on','You will see banners like this.',1)});
 $('al_test').onclick=()=>{ALR.test=0;notify('test','Test alert','This is how alerts look.',1)};
 $('setpin').onclick=setPin;$('rmpin').onclick=rmPin;$('lgo').onclick=tryUnlock;$('lforgot').onclick=forgotPin;
@@ -1289,7 +1581,7 @@ $('logoutb').onclick=logout;
 try{restoreSession()}catch(e){fail(e)}
 $('hist_sync').onclick=histSyncAll;
 $('hist_clear').onclick=async()=>{if(!confirm('Delete all stored candle history from this phone? It can be downloaded again.'))return;
-  for(const sym of Object.keys(IDX))for(const tf of Object.keys(HD))await idbDel('h|'+sym+'|'+tf);Object.keys(TRC).forEach(k=>delete TRC[k]);histState.msg='Deleted.';histState.err='';renderHist()};
+  for(const sym of Object.keys(IDX))for(const tf of Object.keys(HD))await idbDel('h|'+sym+'|'+tf);Object.keys(HC).forEach(k=>delete HC[k]);Object.keys(TRC).forEach(k=>delete TRC[k]);histState.msg='Deleted.';histState.err='';renderHist()};
 </script>
  </body>
 </html>
